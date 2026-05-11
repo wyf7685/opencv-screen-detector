@@ -81,5 +81,6 @@ class TestPreprocessAndFeatures(unittest.TestCase):
         score = compute_score(features)
 
         self.assertAlmostEqual(score, sum(WEIGHTS.values()))
-        self.assertEqual("screen_photo", classify_score(score))
+        self.assertEqual("normal", classify_score(score))
         self.assertEqual("normal", classify_score(THRESHOLD - 0.01))
+        self.assertEqual("screen_photo", classify_score(THRESHOLD + 0.01))

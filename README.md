@@ -53,26 +53,36 @@ uv run python -m unittest discover test/
 
 ## 评分机制
 
-检测器提取图像特征后，通过加权求和计算分数，与阈值（0.248）比较进行分类。权重通过 LDA（线性判别分析）从数据中自动学习得到：
+检测器提取图像特征后，通过加权求和计算分数，与阈值（0.25）比较进行分类。权重通过 LDA（线性判别分析）从数据中自动学习得到：
 
 | 特征 | 权重 | 说明 |
 |------|------|------|
-| format_score | 0.40 | 实际图片格式（PNG=0, JPEG=0.5）— 最强正向特征 |
-| color_noise | 0.188 | HSV 饱和度噪声（屏幕照片更高） |
-| display_content | 0.106 | 边缘密度、线条密度、灰度标准差 |
-| sensor_noise | 0.070 | 高频残差噪声（屏幕照片更高） |
-| artifact | -0.188 | JPEG 块效应/亮像素比例 — 最强负向特征 |
-| reflection | -0.068 | 反射/高光区域（普通图片更高） |
-| perspective | -0.012 | 边缘锐度 |
+| sensor_noise | +0.215 | 高频残差噪声（屏幕照片传感器噪声更高）— 最强正向特征 |
+| softness | +0.181 | 图像模糊度（屏幕拍照更模糊） |
+| illumination | +0.131 | 光照分布 |
+| rectangle | +0.111 | 矩形检测 |
+| format_score | +0.088 | 实际图片格式（PNG=0, JPEG=0.5） |
+| exif_camera | +0.054 | EXIF 相机信息 |
+| banding | +0.048 | 条纹检测 |
+| color_noise | +0.020 | HSV 饱和度噪声 |
+| frequency | -0.251 | 频域特征（截屏频率特征更强）— 最强负向特征 |
+| display_content | -0.116 | 边缘密度（截屏边缘密度更高） |
+| artifact | -0.081 | JPEG 块效应（截屏压缩伪影更明显） |
+| moire | -0.066 | 摩尔纹 |
+| chroma | -0.055 | 色度特征 |
+| perspective | -0.013 | 边缘锐度 |
+| subpixel_fringing | -0.009 | 亚像素边缘 |
+| reflection | -0.008 | 反射/高光区域 |
+| overexposed | -0.002 | 过曝区域 |
 
-核心逻辑：屏幕照片通常是 JPEG 格式且 artifact 较低，JPEG 截图虽然也是 JPEG 但 artifact 较高（压缩伪影更明显），PNG 截图的 format_score 为 0。artifact 是区分 JPEG 截图和屏幕照片的关键特征。
+核心逻辑：屏幕拍照的传感器噪声（sensor_noise）和模糊度（softness）显著高于截屏，而截屏的频域特征（frequency）和边缘密度（display_content）更高。LDA 通过这些特征组合实现分类。
 
 ## 检测效果
 
-在测试数据集上（38 张图片）的检测准确率为 **38/38 (100%)**：
+在测试数据集上（49 张图片）的检测准确率为 **49/49 (100%)**：
 
 - `img/`（截图 + 普通图片）：16/16 正确
-- `photo/`（屏幕拍照）：18/18 正确
+- `photo/`（屏幕拍照）：29/29 正确
 - `no_screen/`（无关图片）：4/4 正确
 
 ## 依赖
