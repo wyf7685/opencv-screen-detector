@@ -61,6 +61,7 @@ class TestPreprocessAndFeatures(unittest.TestCase):
         features = {
             "frequency": 1.0,
             "banding": 1.0,
+            "blackscreen": 1.0,
             "chroma": 1.0,
             "softness": 1.0,
             "illumination": 1.0,
@@ -81,6 +82,6 @@ class TestPreprocessAndFeatures(unittest.TestCase):
         score = compute_score(features)
 
         self.assertAlmostEqual(score, sum(WEIGHTS.values()))
-        self.assertEqual("normal", classify_score(score))
+        self.assertEqual("screen_photo", classify_score(score))
         self.assertEqual("normal", classify_score(THRESHOLD - 0.01))
         self.assertEqual("screen_photo", classify_score(THRESHOLD + 0.01))

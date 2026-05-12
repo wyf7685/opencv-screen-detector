@@ -3,6 +3,7 @@ from pathlib import Path
 
 from src.feature.artifact import analyze_artifact
 from src.feature.banding import analyze_banding
+from src.feature.blackscreen import analyze_blackscreen
 from src.feature.chroma import analyze_chroma
 from src.feature.color_noise import analyze_color_noise
 from src.feature.display_content import analyze_display_content
@@ -33,6 +34,7 @@ class ScreenDetector:
         features = {
             "frequency": analyze_frequency(processed),
             "banding": analyze_banding(processed),
+            "blackscreen": analyze_blackscreen(image),
             "chroma": analyze_chroma(image),
             "softness": analyze_softness(image),
             "illumination": analyze_illumination(processed),
@@ -53,7 +55,7 @@ class ScreenDetector:
         rule_score = compute_score(features)
         model_probability = MLModel().predict(features)
         score = rule_score
-        result = classify_score(score)
+        result = classify_score(score, features)
 
         return {
             "filename": Path(image_path).name,
