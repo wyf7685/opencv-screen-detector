@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from PIL import Image
 
 
 def analyze_format_score(image_path: str | Path) -> float:
     try:
-        from PIL import Image
         with Image.open(str(image_path)) as img:
             fmt = img.format
         if fmt == "PNG":

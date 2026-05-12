@@ -9,21 +9,16 @@ Usage:
 
 from __future__ import annotations
 
-import itertools
-import json
 import os
 import sys
 from pathlib import Path
-
-import cv2
-import numpy as np
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.detector import ScreenDetector
-from src.scoring.rules import WEIGHTS, THRESHOLD
+from src.detector import ScreenDetector  # noqa: E402
+from src.scoring.rules import WEIGHTS, THRESHOLD  # noqa: E402
 
 
 def get_test_images():
@@ -190,7 +185,7 @@ def run_optimization():
     print("=" * 80)
 
     if best_params:
-        print(f"\nBest parameters found:")
+        print("\nBest parameters found:")
         print(f"  sensor_noise weight: {best_params['sensor_noise']}")
         print(f"  blackscreen weight: {best_params['blackscreen']}")
         print(f"  softness weight: {best_params['softness']}")
@@ -199,7 +194,7 @@ def run_optimization():
         print(f"  accuracy: {best_params['correct']}/{best_params['total']} = {best_accuracy:.4f}")
 
         # Show improvement
-        print(f"\nImprovement over current parameters:")
+        print("\nImprovement over current parameters:")
         print(f"  Current accuracy: {correct}/{total} = {accuracy:.4f}")
         print(f"  Best accuracy: {best_params['correct']}/{best_params['total']} = {best_accuracy:.4f}")
         print(f"  Improvement: {best_accuracy - accuracy:.4f}")
@@ -242,10 +237,10 @@ def run_optimization():
         # Step 8: Suggest code changes
         print("\nStep 8: Suggested code changes:")
         print("  # In src/scoring/rules.py:")
-        print(f'  WEIGHTS = {{')
+        print('  WEIGHTS = {')
         for key, value in best_weights.items():
             print(f'      "{key}": {value},')
-        print(f'  }}')
+        print('  }')
         print(f'  THRESHOLD = {best_threshold}')
 
     else:
@@ -314,7 +309,7 @@ def run_detailed_analysis():
                 contributions.append((feat, val, contrib))
 
             contributions.sort(key=lambda x: abs(x[2]), reverse=True)
-            print(f"      Top features:")
+            print("      Top features:")
             for feat, val, contrib in contributions[:5]:
                 print(f"        {feat}: {val:.3f} * {weights.get(feat, 0):.3f} = {contrib:.4f}")
 

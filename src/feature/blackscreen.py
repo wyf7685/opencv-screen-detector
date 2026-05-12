@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import cv2
+import numpy as np
+
 
 def analyze_blackscreen(image) -> float:
     """Detect black screen photos.
@@ -10,11 +13,6 @@ def analyze_blackscreen(image) -> float:
     - Flash overexposed black screens (camera flash on black screen)
     Returns a score in [0, 1] where higher means more likely a black screen.
     """
-    try:
-        import cv2
-        import numpy as np
-    except Exception:
-        return 0.0
 
     if image is None:
         return 0.0

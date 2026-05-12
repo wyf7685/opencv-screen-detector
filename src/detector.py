@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.feature.artifact import analyze_artifact
 from src.feature.banding import analyze_banding
@@ -31,26 +32,42 @@ class ScreenDetector:
         image = load_image(image_path)
         processed = preprocess_image(image)
 
-        features = {
-            "frequency": analyze_frequency(processed),
-            "banding": analyze_banding(processed),
-            "blackscreen": analyze_blackscreen(image),
-            "chroma": analyze_chroma(image),
-            "softness": analyze_softness(image),
-            "illumination": analyze_illumination(processed),
-            "artifact": analyze_artifact(processed),
-            "rectangle": analyze_rectangle(processed),
-            "display_content": analyze_display_content(image),
-            "overexposed": analyze_overexposed(processed),
-            "perspective": analyze_perspective(image),
-            "moire": analyze_moire(image),
-            "reflection": analyze_reflection(image),
-            "sensor_noise": analyze_sensor_noise(image),
-            "subpixel_fringing": analyze_subpixel_fringing(image),
-            "exif_camera": camera_exif_score(image_path),
-            "format_score": analyze_format_score(image_path),
-            "color_noise": analyze_color_noise(image),
+        # Define feature extraction tasks
+        feature_tasks = {
+            "frequency": (analyze_frequency, processed),
+            "banding": (analyze_banding, processed),
+            "blackscreen": (analyze_blackscreen, image),
+            "chroma": (analyze_chroma, image),
+            "softness": (analyze_softness, image),
+            "illumination": (analyze_illumination, processed),
+            "artifact": (analyze_artifact, processed),
+            "rectangle": (analyze_rectangle, processed),
+            "display_content": (analyze_display_content, image),
+            "overexposed": (analyze_overexposed, processed),
+            "perspective": (analyze_perspective, image),
+            "moire": (analyze_moire, image),
+            "reflection": (analyze_reflection, image),
+            "sensor_noise": (analyze_sensor_noise, image),
+            "subpixel_fringing": (analyze_subpixel_fringing, image),
+            "exif_camera": (camera_exif_score, image_path),
+            "format_score": (analyze_format_score, image_path),
+            "color_noise": (analyze_color_noise, image),
         }
+
+        # Execute feature extraction in parallel
+        features = {}
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_name = {
+                executor.submit(func, arg): name
+                for name, (func, arg) in feature_tasks.items()
+            }
+
+            for future in as_completed(future_to_name):
+                name = future_to_name[future]
+                try:
+                    features[name] = future.result()
+                except Exception:
+                    features[name] = 0.0
 
         rule_score = compute_score(features)
         model_probability = MLModel().predict(features)

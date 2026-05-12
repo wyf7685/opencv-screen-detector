@@ -1,11 +1,9 @@
 from __future__ import annotations
 
+import numpy as np
+
 
 def analyze_banding(image) -> float:
-    try:
-        import numpy as np
-    except Exception:
-        return 0.0
 
     if image is None:
         return 0.0

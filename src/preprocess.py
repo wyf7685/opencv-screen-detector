@@ -1,11 +1,9 @@
 from __future__ import annotations
 
+import cv2
+
 
 def preprocess_image(image):
-    try:
-        import cv2
-    except Exception:
-        return image
 
     if image is None:
         return image
