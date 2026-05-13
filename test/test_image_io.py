@@ -20,7 +20,9 @@ class TestImageIO(unittest.TestCase):
 
             loaded = load_images(directory)
 
-            self.assertEqual([str(directory / "a.png"), str(directory / "b.jpg")], loaded)
+            self.assertEqual(
+                [str(directory / "a.png"), str(directory / "b.jpg")], loaded
+            )
 
     def test_load_image_reads_written_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

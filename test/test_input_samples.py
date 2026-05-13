@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import unittest
-from statistics import mean
 from pathlib import Path
+from statistics import mean
 
 from src.detector import ScreenDetector
 from src.scoring.rules import THRESHOLD
@@ -29,14 +29,19 @@ class TestInputSamples(unittest.TestCase):
         results = self._detect_folder("no_screen")
 
         self.assertGreater(len(results), 0)
-        self.assertLessEqual(sum(1 for _, label, _ in results if label == "screen_photo"), 1)
+        self.assertLessEqual(
+            sum(1 for _, label, _ in results if label == "screen_photo"), 1
+        )
 
     def test_photo_folder_scores_above_img(self) -> None:
         photo_results = self._detect_folder("photo")
         img_results = self._detect_folder("img")
 
         self.assertGreater(len(photo_results), 0)
-        self.assertGreater(mean(score for _, _, score in photo_results), mean(score for _, _, score in img_results))
+        self.assertGreater(
+            mean(score for _, _, score in photo_results),
+            mean(score for _, _, score in img_results),
+        )
 
     def _detect_folder(self, folder_name: str) -> list[tuple[str, str, float]]:
         folder = self.root / folder_name

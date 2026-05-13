@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def analyze_subpixel_fringing(image) -> float:
+def analyze_subpixel_fringing(image: np.ndarray | None) -> float:
 
     if image is None:
         return 0.0

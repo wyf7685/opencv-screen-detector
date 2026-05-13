@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def analyze_frequency(image) -> float:
+def analyze_frequency(image: np.ndarray | None) -> float:
 
     if image is None:
         return 0.0

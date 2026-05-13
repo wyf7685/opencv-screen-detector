@@ -1,6 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.feature.artifact import analyze_artifact
 from src.feature.banding import analyze_banding
@@ -14,9 +14,9 @@ from src.feature.illumination import analyze_illumination
 from src.feature.moire import analyze_moire
 from src.feature.overexposed import analyze_overexposed
 from src.feature.perspective import analyze_perspective
+from src.feature.rectangle import analyze_rectangle
 from src.feature.reflection import analyze_reflection
 from src.feature.sensor_noise import analyze_sensor_noise
-from src.feature.rectangle import analyze_rectangle
 from src.feature.softness import analyze_softness
 from src.feature.subpixel_fringing import analyze_subpixel_fringing
 from src.preprocess import preprocess_image

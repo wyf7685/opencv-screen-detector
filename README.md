@@ -24,6 +24,10 @@ uv run python test/test_accuracy.py
 # 运行测试
 uv run python -m pytest test/
 
+# 代码检查和格式化
+ruff check src/ test/
+ruff format src/ test/
+
 # 参数优化（网格搜索最优权重）
 uv run python test/test_parameter_optimization.py
 ```
@@ -61,6 +65,15 @@ uv run python test/test_parameter_optimization.py
 
 检测器提取图像特征后，通过加权求和计算分数，与阈值（0.23）比较进行分类。针对边界情况设有后处理规则：
 
+| 规则 | 条件 | 调整 | 说明 |
+|------|------|------|------|
+| Rule 1 | sensor>0.95, softness<0.74, artifact<0.10, moire>0.80 | score -= 0.12 | UI 截图的异常高传感器噪声 |
+| Rule 2 | moire>0.95, softness>0.95, blackscreen>0.50 | score += 0.06 | 黑屏照片 |
+| Rule 3 | softness>0.90, moire>0.95, artifact<0.08, rectangle>0.10 | score -= 0.06 | 干净截图模拟屏幕拍照 |
+| Rule 4 | softness>0.80, moire>0.90, artifact<0.10, rectangle>0.15 | score -= 0.08 | 中等软度+高摩尔纹+低伪影 |
+
+**特征权重：**
+
 | 特征 | 权重 | 说明 |
 |------|------|------|
 | softness | +0.181 | 图像模糊度（屏幕拍照更模糊） |
@@ -86,7 +99,7 @@ uv run python test/test_parameter_optimization.py
 
 ## 检测效果
 
-在测试数据集上（67 张图片）的检测准确率为 **67/67 (100%)**：
+在测试数据集上（74 张图片）的检测准确率为 **74/74 (100%)**：
 
 - `img/`（截图 + 普通图片）：正确识别
 - `photo/`（屏幕拍照）：正确识别
@@ -102,7 +115,7 @@ uv run python test/test_parameter_optimization.py
 - **关闭电脑后打开手机闪光灯的手机拍摄**
 - 用苹果手机拍摄的电脑屏幕图片
 - 只拍一点点电脑屏幕的手机拍摄
-- 电脑打 CS2 时吃闪光弹后用手机拍摄
+- 各种游戏截图（如 Slay the Spire2,endfeild,Escape the Tarkov）
 
 ## 依赖
 

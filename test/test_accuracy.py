@@ -8,21 +8,23 @@ based on the directory structure (photo/ -> screen_photo, img/ & no_screen/ -> n
 """
 
 import json
-import os
 import sys
+from pathlib import Path
 
-RESULT_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "output", "result.json")
-INPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "input")
+RESULT_PATH = Path(__file__).parent.parent / "data" / "output" / "result.json"
+INPUT_DIR = Path(__file__).parent.parent / "data" / "input"
 
 
 def main():
-    with open(RESULT_PATH, "r", encoding="utf-8") as f:
+    with RESULT_PATH.open(encoding="utf-8") as f:
         results = json.load(f)
 
-    img_files = set(os.listdir(os.path.join(INPUT_DIR, "img")))
-    photo_files = set(os.listdir(os.path.join(INPUT_DIR, "photo")))
-    no_screen_dir = os.path.join(INPUT_DIR, "no_screen")
-    no_screen_files = set(os.listdir(no_screen_dir)) if os.path.isdir(no_screen_dir) else set()
+    img_files = {p.name for p in (INPUT_DIR / "img").iterdir()}
+    photo_files = {p.name for p in (INPUT_DIR / "photo").iterdir()}
+    no_screen_dir = INPUT_DIR / "no_screen"
+    no_screen_files = (
+        {p.name for p in no_screen_dir.iterdir()} if no_screen_dir.is_dir() else set()
+    )
 
     total = len(results)
     correct = 0
@@ -45,7 +47,10 @@ def main():
         else:
             errors.append((fname, expected, result, score))
 
-    print(f"Total: {total}, Correct: {correct}, Errors: {len(errors)}, Accuracy: {correct / total * 100:.2f}%")
+    print(
+        f"Total: {total}, Correct: {correct}, Errors: {len(errors)}, "
+        f"Accuracy: {correct / total * 100:.2f}%"
+    )
 
     if errors:
         print("\nMisclassified images:")

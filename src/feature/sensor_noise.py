@@ -4,16 +4,13 @@ import cv2
 import numpy as np
 
 
-def analyze_sensor_noise(image) -> float:
+def analyze_sensor_noise(image: np.ndarray | None) -> float:
 
     if image is None:
         return 0.0
 
     array = np.asarray(image)
-    if array.ndim == 3:
-        gray = cv2.cvtColor(array, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = array
+    gray = cv2.cvtColor(array, cv2.COLOR_BGR2GRAY) if array.ndim == 3 else array
 
     gray = gray.astype(float)
     low_pass = cv2.GaussianBlur(gray, (9, 9), 0)

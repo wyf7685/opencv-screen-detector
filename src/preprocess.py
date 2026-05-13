@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import cv2
+import numpy as np
 
 
-def preprocess_image(image):
+def preprocess_image(image: np.ndarray | None) -> np.ndarray | None:
 
     if image is None:
         return image

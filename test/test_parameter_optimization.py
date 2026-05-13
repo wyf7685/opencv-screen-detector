@@ -9,7 +9,6 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -17,8 +16,10 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.detector import ScreenDetector  # noqa: E402
-from src.scoring.rules import WEIGHTS, THRESHOLD  # noqa: E402
+from src.detector import ScreenDetector
+from src.scoring.rules import THRESHOLD, WEIGHTS
+
+SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
 def get_test_images():
@@ -29,23 +30,29 @@ def get_test_images():
     # img/ directory: should all be "normal"
     img_dir = data_dir / "img"
     if img_dir.exists():
-        for f in img_dir.iterdir():
-            if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp", ".webp"):
-                images.append((str(f), "normal"))
+        images.extend(
+            (str(f), "normal")
+            for f in img_dir.iterdir()
+            if f.suffix.lower() in SUPPORTED_EXTENSIONS
+        )
 
     # no_screen/ directory: should all be "normal"
     no_screen_dir = data_dir / "no_screen"
     if no_screen_dir.exists():
-        for f in no_screen_dir.iterdir():
-            if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp", ".webp"):
-                images.append((str(f), "normal"))
+        images.extend(
+            (str(f), "normal")
+            for f in no_screen_dir.iterdir()
+            if f.suffix.lower() in SUPPORTED_EXTENSIONS
+        )
 
     # photo/ directory: should all be "screen_photo"
     photo_dir = data_dir / "photo"
     if photo_dir.exists():
-        for f in photo_dir.iterdir():
-            if f.suffix.lower() in (".jpg", ".jpeg", ".png", ".bmp", ".webp"):
-                images.append((str(f), "screen_photo"))
+        images.extend(
+            (str(f), "screen_photo")
+            for f in photo_dir.iterdir()
+            if f.suffix.lower() in SUPPORTED_EXTENSIONS
+        )
 
     return images
 
@@ -61,9 +68,13 @@ def compute_features(image_path: str) -> dict[str, float] | None:
         return None
 
 
-def compute_score_with_params(features: dict[str, float], weights: dict[str, float]) -> float:
+def compute_score_with_params(
+    features: dict[str, float], weights: dict[str, float]
+) -> float:
     """Compute score with given weights."""
-    return sum(float(features.get(name, 0.0)) * weight for name, weight in weights.items())
+    return sum(
+        float(features.get(name, 0.0)) * weight for name, weight in weights.items()
+    )
 
 
 def classify_with_params(score: float, threshold: float) -> str:
@@ -71,7 +82,11 @@ def classify_with_params(score: float, threshold: float) -> str:
     return "screen_photo" if score >= threshold else "normal"
 
 
-def evaluate_params(test_data: list[tuple[dict[str, float], str]], weights: dict[str, float], threshold: float) -> tuple[int, int, float]:
+def evaluate_params(
+    test_data: list[tuple[dict[str, float], str]],
+    weights: dict[str, float],
+    threshold: float,
+) -> tuple[int, int, float]:
     """Evaluate parameters on test data.
 
     Returns:
@@ -114,7 +129,7 @@ def run_optimization():
         if features is not None:
             test_data.append((features, expected))
         else:
-            print(f"  Warning: Could not process {os.path.basename(image_path)}")
+            print(f"  Warning: Could not process {Path(image_path).name}")
 
     print(f"Successfully computed features for {len(test_data)} images")
 
@@ -159,7 +174,9 @@ def run_optimization():
                         weights["softness"] = sf
                         weights["frequency"] = freq
 
-                        correct, total, accuracy = evaluate_params(test_data, weights, th)
+                        correct, total, accuracy = evaluate_params(
+                            test_data, weights, th
+                        )
 
                         if accuracy > best_accuracy:
                             best_accuracy = accuracy
@@ -172,12 +189,20 @@ def run_optimization():
                                 "correct": correct,
                                 "total": total,
                             }
-                            print(f"  New best: accuracy={accuracy:.4f} ({correct}/{total}) "
-                                  f"sn={sn}, bs={bs}, sf={sf}, freq={freq}, th={th}")
+                            print(
+                                f"  New best: accuracy={accuracy:.4f}"
+                                f" ({correct}/{total}) "
+                                f"sn={sn}, bs={bs}, sf={sf}"
+                                f", freq={freq}, th={th}"
+                            )
 
                         tested += 1
                         if tested % 100 == 0:
-                            print(f"  Progress: {tested}/{total_combinations} ({tested/total_combinations*100:.1f}%)")
+                            pct = tested / total_combinations * 100
+                            print(
+                                f"  Progress: {tested}/{total_combinations}"
+                                f" ({pct:.1f}%)"
+                            )
 
     # Step 5: Show results
     print("\n" + "=" * 80)
@@ -191,12 +216,16 @@ def run_optimization():
         print(f"  softness weight: {best_params['softness']}")
         print(f"  frequency weight: {best_params['frequency']}")
         print(f"  threshold: {best_params['threshold']}")
-        print(f"  accuracy: {best_params['correct']}/{best_params['total']} = {best_accuracy:.4f}")
+        correct_n = best_params["correct"]
+        total_n = best_params["total"]
+        print(f"  accuracy: {correct_n}/{total_n} = {best_accuracy:.4f}")
 
         # Show improvement
         print("\nImprovement over current parameters:")
         print(f"  Current accuracy: {correct}/{total} = {accuracy:.4f}")
-        print(f"  Best accuracy: {best_params['correct']}/{best_params['total']} = {best_accuracy:.4f}")
+        correct_n = best_params["correct"]
+        total_n = best_params["total"]
+        print(f"  Best accuracy: {correct_n}/{total_n} = {best_accuracy:.4f}")
         print(f"  Improvement: {best_accuracy - accuracy:.4f}")
 
         # Step 6: Detailed analysis with best parameters
@@ -220,7 +249,9 @@ def run_optimization():
 
         if misclassified:
             for score, predicted, expected in misclassified:
-                print(f"  Score={score:.4f}, Predicted={predicted}, Expected={expected}")
+                print(
+                    f"  Score={score:.4f}, Predicted={predicted}, Expected={expected}"
+                )
         else:
             print("  No misclassified images!")
 
@@ -237,11 +268,11 @@ def run_optimization():
         # Step 8: Suggest code changes
         print("\nStep 8: Suggested code changes:")
         print("  # In src/scoring/rules.py:")
-        print('  WEIGHTS = {')
+        print("  WEIGHTS = {")
         for key, value in best_weights.items():
             print(f'      "{key}": {value},')
-        print('  }')
-        print(f'  THRESHOLD = {best_threshold}')
+        print("  }")
+        print(f"  THRESHOLD = {best_threshold}")
 
     else:
         print("\nNo better parameters found!")
@@ -268,38 +299,52 @@ def run_detailed_analysis():
             score = compute_score_with_params(features, WEIGHTS)
             predicted = classify_with_params(score, THRESHOLD)
 
-            filename = os.path.basename(image_path)
-            results.append({
-                "filename": filename,
-                "expected": expected,
-                "predicted": predicted,
-                "score": score,
-                "correct": predicted == expected,
-                "features": features,
-            })
+            filename = Path(image_path).name
+            results.append(
+                {
+                    "filename": filename,
+                    "expected": expected,
+                    "predicted": predicted,
+                    "score": score,
+                    "correct": predicted == expected,
+                    "features": features,
+                }
+            )
         except Exception as e:
-            print(f"Error processing {os.path.basename(image_path)}: {e}")
+            print(f"Error processing {Path(image_path).name}: {e}")
 
     # Show results
     print("\nResults:")
-    print("  Filename                                    Expected      Predicted     Score    Correct")
+    print(
+        "  Filename"
+        "                                    Expected"
+        "      Predicted     Score    Correct"
+    )
     print("  " + "-" * 90)
 
     for r in results:
         correct_mark = "OK" if r["correct"] else "X"
-        print(f"  {r['filename']:<42s} {r['expected']:<14s} {r['predicted']:<14s} {r['score']:.4f}    {correct_mark}")
+        fname = r["filename"]
+        exp = r["expected"]
+        pred = r["predicted"]
+        score = r["score"]
+        print(f"  {fname:<42s} {exp:<14s} {pred:<14s} {score:.4f}    {correct_mark}")
 
     # Summary
     correct = sum(1 for r in results if r["correct"])
     total = len(results)
-    print(f"\n  Total: {correct}/{total} = {correct/total:.4f}")
+    print(f"\n  Total: {correct}/{total} = {correct / total:.4f}")
 
     # Show misclassified
     misclassified = [r for r in results if not r["correct"]]
     if misclassified:
         print(f"\n  Misclassified images ({len(misclassified)}):")
         for r in misclassified:
-            print(f"    {r['filename']}: expected={r['expected']}, predicted={r['predicted']}, score={r['score']:.4f}")
+            fname = r["filename"]
+            exp = r["expected"]
+            pred = r["predicted"]
+            score = r["score"]
+            print(f"    {fname}: expected={exp}, predicted={pred}, score={score:.4f}")
 
             # Show top contributing features
             weights = WEIGHTS
@@ -311,7 +356,8 @@ def run_detailed_analysis():
             contributions.sort(key=lambda x: abs(x[2]), reverse=True)
             print("      Top features:")
             for feat, val, contrib in contributions[:5]:
-                print(f"        {feat}: {val:.3f} * {weights.get(feat, 0):.3f} = {contrib:.4f}")
+                w = weights.get(feat, 0)
+                print(f"        {feat}: {val:.3f} * {w:.3f} = {contrib:.4f}")
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 
-def analyze_banding(image) -> float:
+def analyze_banding(image: np.ndarray | None) -> float:
 
     if image is None:
         return 0.0

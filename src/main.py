@@ -7,9 +7,7 @@ def main() -> None:
     detector = ScreenDetector()
     images = load_images("./data/input")
 
-    results = []
-    for path in images:
-        results.append(detector.detect(path))
+    results = [detector.detect(path) for path in images]
 
     save_json(results, "./data/output/result.json")
 

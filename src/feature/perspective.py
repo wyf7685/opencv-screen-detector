@@ -4,22 +4,19 @@ import cv2
 import numpy as np
 
 
-def analyze_perspective(image) -> float:
+def analyze_perspective(image: np.ndarray | None) -> float:
 
     if image is None:
         return 0.0
 
     array = np.asarray(image)
-    if array.ndim == 3:
-        gray = cv2.cvtColor(array, cv2.COLOR_BGR2GRAY)
-    else:
-        gray = array
+    gray = cv2.cvtColor(array, cv2.COLOR_BGR2GRAY) if array.ndim == 3 else array
 
     gray_f = gray.astype(float)
     laplacian = np.abs(cv2.Laplacian(gray_f, cv2.CV_64F))
     sobelx = np.abs(cv2.Sobel(gray_f, cv2.CV_64F, 1, 0, ksize=3))
     sobely = np.abs(cv2.Sobel(gray_f, cv2.CV_64F, 0, 1, ksize=3))
-    gradient_mag = np.sqrt(sobelx ** 2 + sobely ** 2)
+    gradient_mag = np.sqrt(sobelx**2 + sobely**2)
 
     threshold = np.percentile(gradient_mag, 90)
     edge_mask = gradient_mag > threshold

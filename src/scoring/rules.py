@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-
 WEIGHTS = {
     "frequency": -0.15,
     "banding": 0.048,
@@ -26,7 +25,9 @@ THRESHOLD = 0.23
 
 
 def compute_score(features: dict[str, float]) -> float:
-    return sum(float(features.get(name, 0.0)) * weight for name, weight in WEIGHTS.items())
+    return sum(
+        float(features.get(name, 0.0)) * weight for name, weight in WEIGHTS.items()
+    )
 
 
 def classify_score(score: float, features: dict[str, float] | None = None) -> str:

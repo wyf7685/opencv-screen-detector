@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def analyze_blackscreen(image) -> float:
+def analyze_blackscreen(image: np.ndarray | None) -> float:
     """Detect black screen photos.
 
     Black screens have very low brightness with many dark pixels.
@@ -62,20 +62,20 @@ def analyze_blackscreen(image) -> float:
     # - Low-to-moderate std (flash creates uniform lighting)
     # - NOT high-contrast content (which would have high std)
     # - Low bright_ratio (not many very bright pixels)
-    if mean_brightness > 100 and std_brightness < 70 and bright_ratio < 0.3:
-        # Check for flash overexposure pattern:
-        # - High mean brightness (flash illuminated)
-        # - Some presence of darker regions (screen border, bezel, shadows)
-        # - Moderate dark_ratio_50 (not too high, not too low)
-        if 0.03 <= dark_ratio_50 <= 0.3:
-            # Score based on how "flash overexposed" it looks
-            # Higher brightness = more likely flash overexposure on dark surface
-            brightness_factor = min(1.0, (mean_brightness - 80) / 80.0)
-            # Some dark regions suggest it was originally dark
-            dark_bonus = min(1.0, dark_ratio_50 * 5.0)
-            # Combine: base score for high brightness + dark region bonus
-            # Increased base score to better detect flash overexposed black screens
-            score = 0.50 + brightness_factor * 0.25 + dark_bonus * 0.25
-            return max(0.0, min(1.0, score))
+    if (
+        mean_brightness > 100
+        and std_brightness < 70
+        and bright_ratio < 0.3
+        and 0.03 <= dark_ratio_50 <= 0.3
+    ):
+        # Score based on how "flash overexposed" it looks
+        # Higher brightness = more likely flash overexposure on dark surface
+        brightness_factor = min(1.0, (mean_brightness - 80) / 80.0)
+        # Some dark regions suggest it was originally dark
+        dark_bonus = min(1.0, dark_ratio_50 * 5.0)
+        # Combine: base score for high brightness + dark region bonus
+        # Increased base score to better detect flash overexposed black screens
+        score = 0.50 + brightness_factor * 0.25 + dark_bonus * 0.25
+        return max(0.0, min(1.0, score))
 
     return 0.0

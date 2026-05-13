@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 from PIL import ExifTags, Image
 
 
@@ -20,7 +21,10 @@ def camera_exif_score(image_path: str | Path) -> float:
     make = str(tags.get("Make", "")).strip()
     model = str(tags.get("Model", "")).strip()
 
-    if any(keyword in software for keyword in ("screenshot", "screen capture", "screen shot")):
+    if any(
+        keyword in software
+        for keyword in ("screenshot", "screen capture", "screen shot")
+    ):
         return 0.0
 
     if make or model:

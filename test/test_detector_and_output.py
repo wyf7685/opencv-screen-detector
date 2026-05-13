@@ -58,12 +58,15 @@ class TestDetectorAndOutput(unittest.TestCase):
                 captured["data"] = data
                 captured["output_path"] = Path(output_path)
 
-            with patch("src.main.load_images", return_value=[str(image_path)]), patch(
-                "src.main.save_json", side_effect=fake_save_json
+            with (
+                patch("src.main.load_images", return_value=[str(image_path)]),
+                patch("src.main.save_json", side_effect=fake_save_json),
             ):
                 run_main()
 
-            self.assertEqual(["input.png"], [item["filename"] for item in captured["data"]])
+            self.assertEqual(
+                ["input.png"], [item["filename"] for item in captured["data"]]
+            )
             self.assertEqual(Path("data/output/result.json"), captured["output_path"])
 
     @staticmethod
