@@ -45,14 +45,14 @@ def classify_score(score: float, features: dict[str, float] | None = None) -> st
         # and high moire (pixel-level rendering patterns), this indicates a
         # normal screenshot, not a camera photo of a screen.
         if sensor > 0.95 and softness < 0.74 and artifact < 0.10 and moire > 0.80:
-            adjusted_score -= 0.08
+            adjusted_score -= 0.12
 
         # Rule 2: Black screen photo with high moire and softness
         # Camera photos of black screens show strong moire patterns from
         # sensor-pixel interference. High softness confirms camera capture.
         # Moderate blackscreen distinguishes from normal images with high moire.
         if moire > 0.95 and softness > 0.95 and blackscreen > 0.50:
-            adjusted_score += 0.04
+            adjusted_score += 0.06
 
         # Rule 3: Normal screenshots with screen-photo-like features
         # Some screenshots have high softness, high moire, and low artifact
@@ -61,6 +61,12 @@ def classify_score(score: float, features: dict[str, float] | None = None) -> st
         # screenshot rather than a camera-captured screen photo.
         rectangle = float(features.get("rectangle", 0.0))
         if softness > 0.90 and moire > 0.95 and artifact < 0.08 and rectangle > 0.10:
-            adjusted_score -= 0.03
+            adjusted_score -= 0.06
+
+        # Rule 4: High softness + high moire + low artifact (moderate threshold)
+        # Screenshots with moderately high softness (>0.80) and high moire
+        # but low artifact are likely clean digital screenshots, not camera photos.
+        if softness > 0.80 and moire > 0.90 and artifact < 0.10 and rectangle > 0.15:
+            adjusted_score -= 0.08
 
     return "screen_photo" if adjusted_score >= THRESHOLD else "normal"
