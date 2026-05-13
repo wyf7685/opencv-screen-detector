@@ -54,4 +54,13 @@ def classify_score(score: float, features: dict[str, float] | None = None) -> st
         if moire > 0.95 and softness > 0.95 and blackscreen > 0.50:
             adjusted_score += 0.04
 
+        # Rule 3: Normal screenshots with screen-photo-like features
+        # Some screenshots have high softness, high moire, and low artifact
+        # (clean capture without compression), which mimics screen photos.
+        # High rectangle score (geometric structure) indicates a clean digital
+        # screenshot rather than a camera-captured screen photo.
+        rectangle = float(features.get("rectangle", 0.0))
+        if softness > 0.90 and moire > 0.95 and artifact < 0.08 and rectangle > 0.10:
+            adjusted_score -= 0.03
+
     return "screen_photo" if adjusted_score >= THRESHOLD else "normal"
