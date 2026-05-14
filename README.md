@@ -82,6 +82,8 @@ uv run python test/test_parameter_optimization.py
 | Rule 13 | sensor>0.95, blackscreen>0.80, artifact>0.20, color_noise<0.30 | score -= 0.08 | 极高噪声+高黑屏+高伪影+低色彩噪声的普通图片 |
 | Rule 14 | perspective>0.70, sensor>0.60, blackscreen>0.80, softness>0.85 | score -= 0.06 | 高透视+中等噪声+高黑屏+高软度的普通图片 |
 | Rule 15 | sensor<0.30, softness>0.95, moire>0.95, illumination<0.35, blackscreen=0 | score -= 0.06 | 极低噪声+高软度+高摩尔纹+低光照的普通图片 |
+| Rule 16 | 0.60<sensor<0.85, softness>0.85, blackscreen>0.70, moire>0.95, 0.10<artifact<0.25 | score -= 0.06 | 中等噪声+高软度+高黑屏+高摩尔纹+中等伪影的普通图片 |
+| Rule 17 | sensor<0.40, softness>0.95, blackscreen>0.80, moire>0.95, artifact<0.05 | score -= 0.12 | 低噪声+极高软度+高黑屏+高摩尔纹+极低伪影的普通图片 |
 
 **特征权重：**
 
@@ -110,7 +112,7 @@ uv run python test/test_parameter_optimization.py
 
 ## 检测效果
 
-在测试数据集上（89 张图片）的检测准确率为 **89/89 (100%)**：
+在测试数据集上（92 张图片）的检测准确率为 **92/92 (100%)**：
 
 - `img/`（截图 + 普通图片）：正确识别
 - `photo/`（屏幕拍照）：正确识别

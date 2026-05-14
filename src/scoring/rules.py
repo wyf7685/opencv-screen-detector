@@ -240,6 +240,37 @@ def _build_rule_engine() -> RuleEngine:
                 ),
                 delta=-0.06,
             ),
+            # Rule 16: Normal image with medium sensor noise,
+            # high softness, blackscreen, moire and medium artifact
+            # Handles: github.jpg
+            Rule(
+                name="normal_medium_noise_high_softness_blackscreen",
+                condition=lambda features: (
+                    _feature_value(features, "sensor_noise") > 0.60
+                    and _feature_value(features, "sensor_noise") < 0.85
+                    and _feature_value(features, "softness") > 0.85
+                    and _feature_value(features, "blackscreen") > 0.70
+                    and _feature_value(features, "moire") > 0.95
+                    and _feature_value(features, "artifact") > 0.10
+                    and _feature_value(features, "artifact") < 0.25
+                ),
+                delta=-0.06,
+            ),
+            # Rule 17: Normal image with low sensor noise,
+            # very high softness, high blackscreen, moire and low artifact
+            # Handles: 887289efcccc4b56aa50698b09b91210.jpg
+            # Stronger than Rule 6 to override its effect
+            Rule(
+                name="normal_low_noise_very_high_softness_blackscreen",
+                condition=lambda features: (
+                    _feature_value(features, "sensor_noise") < 0.40
+                    and _feature_value(features, "softness") > 0.95
+                    and _feature_value(features, "blackscreen") > 0.80
+                    and _feature_value(features, "moire") > 0.95
+                    and _feature_value(features, "artifact") < 0.05
+                ),
+                delta=-0.12,
+            ),
         ]
     )
 
