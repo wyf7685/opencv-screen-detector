@@ -70,4 +70,11 @@ def classify_score(score: float, features: dict[str, float] | None = None) -> st
         if softness > 0.80 and moire > 0.90 and artifact < 0.10 and rectangle > 0.15:
             adjusted_score -= 0.08
 
+        # Rule 5: High softness + high moire + moderate artifact + geometric structure
+        # When sensor_noise is not abnormally high, high softness and moire with
+        # moderate-to-high artifact and visible geometric structure (rectangle)
+        # indicate a normal image, not a screen photo.
+        if sensor < 0.85 and softness > 0.85 and moire > 0.95 and artifact >= 0.10 and rectangle > 0.13:
+            adjusted_score -= 0.06
+
     return "screen_photo" if adjusted_score >= THRESHOLD else "normal"

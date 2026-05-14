@@ -1,5 +1,4 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
 from pathlib import Path
 
 from src.feature.artifact import analyze_artifact
@@ -26,8 +25,13 @@ from src.utils.image_io import load_image
 from src.utils.image_metadata import camera_exif_score
 
 
-@dataclass
 class ScreenDetector:
+    def __init__(self, max_workers: int = 4) -> None:
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+
+    def __del__(self) -> None:
+        self._executor.shutdown(wait=False)
+
     def detect(self, image_path: str | Path) -> dict:
         image = load_image(image_path)
         processed = preprocess_image(image)
@@ -56,18 +60,17 @@ class ScreenDetector:
 
         # Execute feature extraction in parallel
         features = {}
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            future_to_name = {
-                executor.submit(func, arg): name
-                for name, (func, arg) in feature_tasks.items()
-            }
+        future_to_name = {
+            self._executor.submit(func, arg): name
+            for name, (func, arg) in feature_tasks.items()
+        }
 
-            for future in as_completed(future_to_name):
-                name = future_to_name[future]
-                try:
-                    features[name] = future.result()
-                except Exception:
-                    features[name] = 0.0
+        for future in as_completed(future_to_name):
+            name = future_to_name[future]
+            try:
+                features[name] = future.result()
+            except Exception:
+                features[name] = 0.0
 
         rule_score = compute_score(features)
         model_probability = MLModel().predict(features)
