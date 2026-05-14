@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+
 WEIGHTS = {
     "frequency": -0.15,
     "banding": 0.048,
@@ -24,6 +27,91 @@ WEIGHTS = {
 THRESHOLD = 0.23
 
 
+def _feature_value(features: Mapping[str, float], name: str) -> float:
+    return float(features.get(name, 0.0))
+
+
+@dataclass(frozen=True)
+class Rule:
+    name: str
+    condition: Callable[[Mapping[str, float]], bool]
+    delta: float
+
+
+class RuleEngine:
+    def __init__(self, rules: list[Rule]) -> None:
+        self._rules = rules
+
+    def apply(self, score: float, features: Mapping[str, float]) -> float:
+        adjusted_score = score
+
+        for rule in self._rules:
+            if rule.condition(features):
+                adjusted_score += rule.delta
+
+        return adjusted_score
+
+
+def _build_rule_engine() -> RuleEngine:
+    return RuleEngine(
+        [
+            Rule(
+                name="ui_screenshot_with_high_sensor_noise",
+                condition=lambda features: (
+                    _feature_value(features, "sensor_noise") > 0.95
+                    and _feature_value(features, "softness") < 0.74
+                    and _feature_value(features, "artifact") < 0.10
+                    and _feature_value(features, "moire") > 0.80
+                ),
+                delta=-0.12,
+            ),
+            Rule(
+                name="black_screen_photo",
+                condition=lambda features: (
+                    _feature_value(features, "moire") > 0.95
+                    and _feature_value(features, "softness") > 0.95
+                    and _feature_value(features, "blackscreen") > 0.50
+                ),
+                delta=0.06,
+            ),
+            Rule(
+                name="clean_screenshot_with_screen_like_features",
+                condition=lambda features: (
+                    _feature_value(features, "softness") > 0.90
+                    and _feature_value(features, "moire") > 0.95
+                    and _feature_value(features, "artifact") < 0.08
+                    and _feature_value(features, "rectangle") > 0.10
+                ),
+                delta=-0.06,
+            ),
+            Rule(
+                name="high_softness_high_moire_low_artifact",
+                condition=lambda features: (
+                    _feature_value(features, "softness") > 0.80
+                    and _feature_value(features, "moire") > 0.90
+                    and _feature_value(features, "artifact") < 0.10
+                    and _feature_value(features, "rectangle") > 0.15
+                ),
+                delta=-0.08,
+            ),
+            Rule(
+                name="normal_image_with_geometric_structure",
+                condition=lambda features: (
+                    _feature_value(features, "sensor_noise") < 0.85
+                    and _feature_value(features, "softness") > 0.85
+                    and _feature_value(features, "moire") > 0.95
+                    and _feature_value(features, "artifact") >= 0.10
+                    and _feature_value(features, "rectangle") > 0.13
+                ),
+                delta=-0.06,
+            ),
+        ]
+    )
+
+
+RULE_ENGINE = _build_rule_engine()
+
+
 def compute_score(features: dict[str, float]) -> float:
     return sum(
         float(features.get(name, 0.0)) * weight for name, weight in WEIGHTS.items()
@@ -34,47 +122,6 @@ def classify_score(score: float, features: dict[str, float] | None = None) -> st
     adjusted_score = score
 
     if features:
-        sensor = float(features.get("sensor_noise", 0.0))
-        softness = float(features.get("softness", 0.0))
-        artifact = float(features.get("artifact", 0.0))
-        moire = float(features.get("moire", 0.0))
-        blackscreen = float(features.get("blackscreen", 0.0))
-
-        # Rule 1: UI screenshot with abnormally high sensor noise
-        # Dark-themed UI screenshots can trigger high sensor_noise due to fine
-        # texture patterns. When combined with low softness, low artifact,
-        # and high moire (pixel-level rendering patterns), this indicates a
-        # normal screenshot, not a camera photo of a screen.
-        if sensor > 0.95 and softness < 0.74 and artifact < 0.10 and moire > 0.80:
-            adjusted_score -= 0.12
-
-        # Rule 2: Black screen photo with high moire and softness
-        # Camera photos of black screens show strong moire patterns from
-        # sensor-pixel interference. High softness confirms camera capture.
-        # Moderate blackscreen distinguishes from normal images with high moire.
-        if moire > 0.95 and softness > 0.95 and blackscreen > 0.50:
-            adjusted_score += 0.06
-
-        # Rule 3: Normal screenshots with screen-photo-like features
-        # Some screenshots have high softness, high moire, and low artifact
-        # (clean capture without compression), which mimics screen photos.
-        # High rectangle score (geometric structure) indicates a clean digital
-        # screenshot rather than a camera-captured screen photo.
-        rectangle = float(features.get("rectangle", 0.0))
-        if softness > 0.90 and moire > 0.95 and artifact < 0.08 and rectangle > 0.10:
-            adjusted_score -= 0.06
-
-        # Rule 4: High softness + high moire + low artifact (moderate threshold)
-        # Screenshots with moderately high softness (>0.80) and high moire
-        # but low artifact are likely clean digital screenshots, not camera photos.
-        if softness > 0.80 and moire > 0.90 and artifact < 0.10 and rectangle > 0.15:
-            adjusted_score -= 0.08
-
-        # Rule 5: High softness + high moire + moderate artifact + geometric structure
-        # When sensor_noise is not abnormally high, high softness and moire with
-        # moderate-to-high artifact and visible geometric structure (rectangle)
-        # indicate a normal image, not a screen photo.
-        if sensor < 0.85 and softness > 0.85 and moire > 0.95 and artifact >= 0.10 and rectangle > 0.13:
-            adjusted_score -= 0.06
+        adjusted_score = RULE_ENGINE.apply(score, features)
 
     return "screen_photo" if adjusted_score >= THRESHOLD else "normal"
