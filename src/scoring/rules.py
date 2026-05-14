@@ -108,14 +108,17 @@ def _build_rule_engine() -> RuleEngine:
                 ),
                 delta=-0.06,
             ),
-            # Rule 6: Screen photo with very low sensor noise, high softness and high moire
-            # Handles: wchclass.png (sensor_noise=0.298, softness=0.968, moire=1.000)
+            # Rule 6: Screen photo with very low sensor noise,
+            # high softness and high moire
+            # Handles: wchclass.png
+            # Excludes normal images with low illumination
             Rule(
                 name="screen_photo_low_noise_high_softness",
                 condition=lambda features: (
                     _feature_value(features, "sensor_noise") < 0.30
                     and _feature_value(features, "softness") > 0.95
                     and _feature_value(features, "moire") > 0.95
+                    and _feature_value(features, "illumination") > 0.35
                 ),
                 delta=0.06,
             ),
@@ -131,8 +134,9 @@ def _build_rule_engine() -> RuleEngine:
                 ),
                 delta=0.06,
             ),
-            # Rule 8: Normal image with high blackscreen, softness, moire and low artifact
-            # Handles: qqchat.jpg, wall.jpg (high blackscreen + high softness + low artifact)
+            # Rule 8: Normal image with high blackscreen,
+            # softness, moire and low artifact
+            # Handles: qqchat.jpg, wall.jpg
             # Excludes screen photos by requiring lower sensor_noise
             Rule(
                 name="normal_high_blackscreen_softness_moire",
@@ -156,8 +160,9 @@ def _build_rule_engine() -> RuleEngine:
                 ),
                 delta=-0.06,
             ),
-            # Rule 10: Screen photo with medium sensor noise, high blackscreen and softness
-            # Handles: zmd.jpg (sensor_noise=0.649, blackscreen=0.821, softness=0.876)
+            # Rule 10: Screen photo with medium sensor noise,
+            # high blackscreen and softness
+            # Handles: zmd.jpg
             Rule(
                 name="screen_photo_medium_noise_high_blackscreen",
                 condition=lambda features: (
@@ -168,8 +173,9 @@ def _build_rule_engine() -> RuleEngine:
                 ),
                 delta=0.06,
             ),
-            # Rule 11: Normal image with high blackscreen, moire, medium sensor noise
-            # Handles: guoy.jpg (sensor_noise=0.641, blackscreen=0.859, moire=1.000, softness=0.862, artifact=0.107)
+            # Rule 11: Normal image with high blackscreen,
+            # moire, medium sensor noise
+            # Handles: guoy.jpg
             Rule(
                 name="normal_high_blackscreen_moire_medium_noise",
                 condition=lambda features: (
@@ -181,8 +187,9 @@ def _build_rule_engine() -> RuleEngine:
                 ),
                 delta=-0.06,
             ),
-            # Rule 12: Normal image with high blackscreen, moire, medium sensor noise and low artifact
-            # Handles: qqchat.jpg (sensor_noise=0.638, blackscreen=0.751, moire=1.000, artifact=0.074)
+            # Rule 12: Normal image with high blackscreen,
+            # moire, medium sensor noise and low artifact
+            # Handles: qqchat.jpg
             Rule(
                 name="normal_high_blackscreen_moire_low_artifact",
                 condition=lambda features: (
@@ -193,8 +200,9 @@ def _build_rule_engine() -> RuleEngine:
                 ),
                 delta=-0.06,
             ),
-            # Rule 13: Normal image with very high sensor noise, high blackscreen, artifact and low color_noise
-            # Handles: trump.jpg (sensor_noise=1.000, blackscreen=0.857, artifact=0.213, color_noise=0.216)
+            # Rule 13: Normal image with very high sensor noise,
+            # high blackscreen, artifact and low color_noise
+            # Handles: trump.jpg
             Rule(
                 name="normal_very_high_noise_blackscreen_artifact",
                 condition=lambda features: (
@@ -205,8 +213,9 @@ def _build_rule_engine() -> RuleEngine:
                 ),
                 delta=-0.08,
             ),
-            # Rule 14: Normal image with high perspective, sensor noise, blackscreen and softness
-            # Handles: kex.jpg (perspective=0.809, sensor_noise=0.737, blackscreen=0.834, softness=0.887)
+            # Rule 14: Normal image with high perspective,
+            # sensor noise, blackscreen and softness
+            # Handles: kex.jpg
             Rule(
                 name="normal_high_perspective_noise_blackscreen",
                 condition=lambda features: (
@@ -214,6 +223,20 @@ def _build_rule_engine() -> RuleEngine:
                     and _feature_value(features, "sensor_noise") > 0.60
                     and _feature_value(features, "blackscreen") > 0.80
                     and _feature_value(features, "softness") > 0.85
+                ),
+                delta=-0.06,
+            ),
+            # Rule 15: Normal image with very low sensor noise,
+            # high softness, high moire and low illumination
+            # Handles: 40972da4, 914535be, e810ad51
+            Rule(
+                name="normal_low_noise_high_softness_low_illumination",
+                condition=lambda features: (
+                    _feature_value(features, "sensor_noise") < 0.30
+                    and _feature_value(features, "softness") > 0.95
+                    and _feature_value(features, "moire") > 0.95
+                    and _feature_value(features, "illumination") < 0.35
+                    and _feature_value(features, "blackscreen") == 0.0
                 ),
                 delta=-0.06,
             ),
