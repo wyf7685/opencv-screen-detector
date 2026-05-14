@@ -20,7 +20,7 @@ from src.feature.softness import analyze_softness
 from src.feature.subpixel_fringing import analyze_subpixel_fringing
 from src.preprocess import preprocess_image
 from src.scoring.ml_model import MLModel
-from src.scoring.rules import classify_score, compute_score
+from src.scoring.rules import RULE_ENGINE, THRESHOLD, compute_score
 from src.utils.image_io import load_image
 from src.utils.image_metadata import camera_exif_score
 
@@ -74,8 +74,9 @@ class ScreenDetector:
 
         rule_score = compute_score(features)
         model_probability = MLModel().predict(features)
-        score = rule_score
-        result = classify_score(score, features)
+        adjusted_score = RULE_ENGINE.apply(rule_score, features)
+        score = adjusted_score
+        result = "screen_photo" if score >= THRESHOLD else "normal"
 
         return {
             "filename": Path(image_path).name,
