@@ -83,9 +83,7 @@ def _save_to_cache(
 def prepare_training_data(
     features_list: list[dict[str, float]], labels: list[int]
 ) -> tuple[np.ndarray, np.ndarray]:
-    x = np.array(
-        [[f.get(name, 0.0) for name in FEATURE_NAMES] for f in features_list]
-    )
+    x = np.array([[f.get(name, 0.0) for name in FEATURE_NAMES] for f in features_list])
     y = np.array(labels)
     return x, y
 

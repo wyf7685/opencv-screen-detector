@@ -5,9 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-_CONFIG_PATH = (
-    Path(__file__).resolve().parent.parent.parent / "config" / "rules.json"
-)
+_CONFIG_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "rules.json"
 
 
 @dataclass(frozen=True)
@@ -17,13 +15,9 @@ class Rule:
     delta: float
 
 
-def _evaluate_condition(
-    condition: dict, features: Mapping[str, float]
-) -> bool:
+def _evaluate_condition(condition: dict, features: Mapping[str, float]) -> bool:
     if "all" in condition:
-        return all(
-            _evaluate_condition(sub, features) for sub in condition["all"]
-        )
+        return all(_evaluate_condition(sub, features) for sub in condition["all"])
 
     feature_name = condition["feature"]
     value = float(features.get(feature_name, 0.0))
@@ -91,14 +85,11 @@ def reload_config(config_path: Path | None = None) -> None:
 
 def compute_score(features: dict[str, float]) -> float:
     return sum(
-        float(features.get(name, 0.0)) * weight
-        for name, weight in WEIGHTS.items()
+        float(features.get(name, 0.0)) * weight for name, weight in WEIGHTS.items()
     )
 
 
-def classify_score(
-    score: float, features: dict[str, float] | None = None
-) -> str:
+def classify_score(score: float, features: dict[str, float] | None = None) -> str:
     adjusted_score = score
 
     if features:

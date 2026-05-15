@@ -174,7 +174,4 @@ def _detect_specular_reflection(hsv: np.ndarray) -> float:
     specular_ratio = specular_area / total_area
 
     # 镜面反射通常很小但很亮
-    return (
-        min(specular_count / 2.0, 1.0) * 0.5
-        + min(specular_ratio * 10, 1.0) * 0.5
-    )
+    return min(specular_count / 2.0, 1.0) * 0.5 + min(specular_ratio * 10, 1.0) * 0.5

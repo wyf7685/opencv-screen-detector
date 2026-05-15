@@ -5,7 +5,6 @@ import numpy as np
 
 
 def analyze_sensor_noise(image: np.ndarray | None) -> float:
-
     if image is None:
         return 0.0
 

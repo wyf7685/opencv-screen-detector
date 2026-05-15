@@ -6,7 +6,6 @@ from PIL import ExifTags, Image
 
 
 def camera_exif_score(image_path: str | Path) -> float:
-
     try:
         with Image.open(Path(image_path)) as image:
             exif = image.getexif()

@@ -11,6 +11,9 @@ dependencies = [
     "pytest>=9.0.3",
     "lightgbm>=4.0.0",
     "scikit-learn>=1.4.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.0",
+    "httpx>=0.28.0",
 ]
 
 [dependency-groups]

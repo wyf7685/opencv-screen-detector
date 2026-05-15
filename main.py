@@ -1,11 +1,10 @@
-import runpy
-from pathlib import Path
+import uvicorn
+from fastapi import FastAPI
 
+from src.api.detect import router as detect_router
 
-def main() -> None:
-    src_main = Path(__file__).resolve().parent / "src" / "main.py"
-    runpy.run_path(str(src_main), run_name="__main__")
-
+app = FastAPI(title="Screen Detector API")
+app.include_router(detect_router)
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host="0.0.0.0", port=8325)  # noqa: S104

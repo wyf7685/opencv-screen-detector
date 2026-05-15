@@ -6,7 +6,9 @@ from src.ml.predict import load_model, predict
 
 _MODEL_PATH = (
     Path(__file__).resolve().parent.parent.parent
-    / "data" / "model" / "screen_detector.pkl"
+    / "data"
+    / "model"
+    / "screen_detector.pkl"
 )
 
 

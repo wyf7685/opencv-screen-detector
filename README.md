@@ -4,6 +4,7 @@
 
 ## 功能
 
+- FastAPI REST API，支持通过图片 URL 远程检测
 - 支持单张图片和文件夹批量检测
 - 三分类：`screenshot`（系统截图）、`screen_photo`（手机拍屏）、`normal_photo`（普通照片）
 - 18维图像特征提取（透视畸变、CMOS噪声、摩尔纹、反光等）
@@ -17,8 +18,17 @@
 # 安装依赖
 uv sync
 
-# 运行检测（读取 data/input/，输出 data/output/result.json）
+# 启动 API 服务
 uv run main.py
+
+# 测试检测接口
+curl -X POST http://localhost:8325/api/detect \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/test.jpg"}'
+# 返回: {"is_screen": true} 或 {"is_screen": false}
+
+# 批量检测（读取 data/input/，输出 data/output/result.json）
+uv run python test/test_batch_detect.py
 
 # 训练模型
 uv run python -c "from src.ml.train import main; main()"
@@ -30,17 +40,19 @@ uv run python -m pytest test/
 uv run python test/test_accuracy.py
 
 # 代码检查和格式化
-ruff check src/ test/
-ruff format src/ test/
+ruff check src/ main.py test/
+ruff format src/ main.py test/
 ```
 
 ## 项目结构
 
 ```
-├── main.py                    # 入口
+├── main.py                    # FastAPI 入口
 ├── src/
-│   ├── main.py                # 流程编排
+│   ├── main.py                # 批量检测流程编排
 │   ├── detector.py            # ScreenDetector 核心检测器
+│   ├── api/                   # FastAPI API 模块
+│   │   └── detect.py          # POST /api/detect 端点
 │   ├── preprocess.py          # 图像预处理
 │   ├── feature/               # 18个特征提取模块
 │   │   ├── frequency.py       # 频域特征
@@ -142,6 +154,9 @@ ruff format src/ test/
 - pillow >= 11.0.0
 - lightgbm >= 4.0.0
 - scikit-learn >= 1.4.0
+- fastapi >= 0.115.0
+- uvicorn >= 0.34.0
+- httpx >= 0.28.0
 - 构建系统：hatchling
 - 包管理：uv
 

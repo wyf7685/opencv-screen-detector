@@ -4,7 +4,6 @@ import numpy as np
 
 
 def analyze_banding(image: np.ndarray | None) -> float:
-
     if image is None:
         return 0.0
 

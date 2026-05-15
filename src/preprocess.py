@@ -5,7 +5,6 @@ import numpy as np
 
 
 def preprocess_image(image: np.ndarray | None) -> np.ndarray | None:
-
     if image is None:
         return image
 

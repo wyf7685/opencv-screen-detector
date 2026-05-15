@@ -35,9 +35,7 @@ def analyze_subpixel_fringing(image: np.ndarray) -> float:
 
     # 综合评分
     subpixel_score = (
-        text_edge_score * 0.4
-        + edge_color_score * 0.3
-        + subpixel_structure_score * 0.3
+        text_edge_score * 0.4 + edge_color_score * 0.3 + subpixel_structure_score * 0.3
     )
 
     return min(max(subpixel_score, 0.0), 1.0)

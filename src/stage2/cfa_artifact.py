@@ -35,9 +35,7 @@ def analyze_cfa_artifact(image: np.ndarray) -> float:
 
     # 综合评分
     cfa_score = (
-        correlation_score * 0.4
-        + channel_diff_score * 0.3
-        + frequency_score * 0.3
+        correlation_score * 0.4 + channel_diff_score * 0.3 + frequency_score * 0.3
     )
 
     return min(max(cfa_score, 0.0), 1.0)
@@ -64,18 +62,18 @@ def _analyze_2x2_correlation(image: np.ndarray) -> float:
     h2, w2 = (h // 2) * 2, (w // 2) * 2
 
     # 提取2x2块并reshape为(n_blocks, 4)
-    r_blocks = np.stack([
-        r[0:h2:2, 0:w2:2], r[0:h2:2, 1:w2:2],
-        r[1:h2:2, 0:w2:2], r[1:h2:2, 1:w2:2]
-    ], axis=-1).reshape(-1, 4)
-    g_blocks = np.stack([
-        g[0:h2:2, 0:w2:2], g[0:h2:2, 1:w2:2],
-        g[1:h2:2, 0:w2:2], g[1:h2:2, 1:w2:2]
-    ], axis=-1).reshape(-1, 4)
-    b_blocks = np.stack([
-        b[0:h2:2, 0:w2:2], b[0:h2:2, 1:w2:2],
-        b[1:h2:2, 0:w2:2], b[1:h2:2, 1:w2:2]
-    ], axis=-1).reshape(-1, 4)
+    r_blocks = np.stack(
+        [r[0:h2:2, 0:w2:2], r[0:h2:2, 1:w2:2], r[1:h2:2, 0:w2:2], r[1:h2:2, 1:w2:2]],
+        axis=-1,
+    ).reshape(-1, 4)
+    g_blocks = np.stack(
+        [g[0:h2:2, 0:w2:2], g[0:h2:2, 1:w2:2], g[1:h2:2, 0:w2:2], g[1:h2:2, 1:w2:2]],
+        axis=-1,
+    ).reshape(-1, 4)
+    b_blocks = np.stack(
+        [b[0:h2:2, 0:w2:2], b[0:h2:2, 1:w2:2], b[1:h2:2, 0:w2:2], b[1:h2:2, 1:w2:2]],
+        axis=-1,
+    ).reshape(-1, 4)
 
     if r_blocks.size == 0:
         return 0.0

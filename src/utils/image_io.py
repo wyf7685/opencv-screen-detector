@@ -9,7 +9,6 @@ SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
 def load_image(image_path: str | Path) -> np.ndarray:
-
     image_path = Path(image_path)
     image = cv2.imread(str(image_path))
     if image is None:
