@@ -24,6 +24,14 @@ CONTENT_TYPE_SUFFIX_MAP: dict[str, str] = {
     "image/bmp": ".bmp",
 }
 
+HEADERS: dict[str, str] = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/131.0.0.0 Safari/537.36"
+    ),
+}
+
 
 class DetectRequest(BaseModel):
     url: HttpUrl
@@ -46,21 +54,37 @@ def _remove_temp_file(path: Path) -> None:
 
 @router.post("/detect", response_model=DetectResponse)
 async def detect_image(req: DetectRequest) -> DetectResponse:
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+    url = str(req.url)
+    logger.info("Downloading image from: %s", url)
+
+    async with httpx.AsyncClient(
+        timeout=30.0,
+        follow_redirects=True,
+        headers=HEADERS,
+    ) as client:
         try:
-            resp = await client.get(str(req.url))
+            resp = await client.get(url)
             resp.raise_for_status()
-        except httpx.HTTPError as err:
+        except httpx.HTTPStatusError as err:
+            logger.exception("HTTP error %d", err.response.status_code)
             raise HTTPException(
                 status_code=502,
-                detail="Failed to download image from URL",
+                detail=f"HTTP {err.response.status_code}",
+            ) from err
+        except httpx.HTTPError as err:
+            logger.exception("Download error")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to download: {err}",
             ) from err
 
     content_type = resp.headers.get("content-type", "")
+    logger.info("Content-Type: %s, Size: %d bytes", content_type, len(resp.content))
+
     if not content_type.startswith("image/"):
         raise HTTPException(
             status_code=422,
-            detail="URL does not point to an image",
+            detail=f"Not an image (got {content_type})",
         )
 
     suffix = _suffix_from_content_type(content_type)
@@ -71,6 +95,7 @@ async def detect_image(req: DetectRequest) -> DetectResponse:
     try:
         result = await asyncio.to_thread(_detector.detect, tmp_path)
         is_screen = result["result"] in ("screenshot", "screen_photo")
+        logger.info("Result: %s (is_screen=%s)", result["result"], is_screen)
         return DetectResponse(is_screen=is_screen)
     except ValueError:
         raise HTTPException(
