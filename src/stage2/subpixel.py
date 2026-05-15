@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def analyze_subpixel_fringing(image: np.ndarray) -> float:
+def analyze_subpixel_fringing(image: np.ndarray) -> float | np.floating:
     """
     检测图像中的亚像素彩边
 
@@ -41,7 +41,7 @@ def analyze_subpixel_fringing(image: np.ndarray) -> float:
     return min(max(subpixel_score, 0.0), 1.0)
 
 
-def _detect_text_edge_chromatic_aberration(image: np.ndarray) -> float:
+def _detect_text_edge_chromatic_aberration(image: np.ndarray) -> float | np.floating:
     """
     检测文字边缘的色差
 
@@ -118,7 +118,7 @@ def _detect_edge_color_separation(image: np.ndarray) -> float:
     return 1.0 - overlap_ratio
 
 
-def _detect_subpixel_structure(image: np.ndarray) -> float:
+def _detect_subpixel_structure(image: np.ndarray) -> float | np.floating:
     """
     检测亚像素结构
 

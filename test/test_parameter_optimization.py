@@ -16,8 +16,8 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.detector import ScreenDetector
-from src.scoring.rules import THRESHOLD, WEIGHTS
+from src.detector import ScreenDetector  # noqa: E402
+from src.scoring.rules import THRESHOLD, WEIGHTS  # noqa: E402
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 

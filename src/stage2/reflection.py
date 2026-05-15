@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def analyze_reflection(image: np.ndarray) -> float:
+def analyze_reflection(image: np.ndarray) -> float | np.floating:
     """
     检测图像中的反光
 
@@ -41,7 +41,7 @@ def analyze_reflection(image: np.ndarray) -> float:
     return min(max(reflection_score, 0.0), 1.0)
 
 
-def _detect_highlight_regions(hsv: np.ndarray) -> float:
+def _detect_highlight_regions(hsv: np.ndarray) -> float | np.floating:
     """
     检测高亮低纹理区域
 

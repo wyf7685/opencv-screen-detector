@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -12,7 +13,7 @@ LABEL_NAMES = ["screenshot", "normal_photo", "screen_photo"]
 
 
 def predict(
-    model: object,
+    model: Any,
     features: dict[str, float],
     threshold: float = 0.5,  # noqa: ARG001
 ) -> tuple[str, float]:

@@ -4,6 +4,7 @@ import json
 import logging
 import pickle
 from pathlib import Path
+from typing import cast
 
 import lightgbm as lgb
 import numpy as np
@@ -140,17 +141,17 @@ def main() -> None:
     )
 
     logger.info("Training LightGBM model...")
-    model = train_model(x_train, y_train)
+    model = train_model(cast("np.ndarray", x_train), cast("np.ndarray", y_train))
 
     # Predict on validation set
-    y_pred_prob = model.predict(x_val)
+    y_pred_prob = cast("np.ndarray", model.predict(x_val))
     y_pred = np.argmax(y_pred_prob, axis=1)
     accuracy = float(np.mean(y_pred == y_val))
     logger.info("Validation accuracy: %.4f", accuracy)
 
     # Per-class accuracy
     for i, name in enumerate(LABEL_NAMES):
-        mask = y_val == i
+        mask = cast("np.ndarray", y_val == i)
         if mask.sum() > 0:
             class_acc = float(np.mean(y_pred[mask] == y_val[mask]))
             logger.info("  %s accuracy: %.4f (%d samples)", name, class_acc, mask.sum())

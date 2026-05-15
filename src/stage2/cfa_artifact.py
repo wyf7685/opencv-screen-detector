@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def analyze_cfa_artifact(image: np.ndarray) -> float:
+def analyze_cfa_artifact(image: np.ndarray) -> float | np.floating:
     """
     检测图像中的CFA插值伪影
 
@@ -41,7 +41,7 @@ def analyze_cfa_artifact(image: np.ndarray) -> float:
     return min(max(cfa_score, 0.0), 1.0)
 
 
-def _analyze_2x2_correlation(image: np.ndarray) -> float:
+def _analyze_2x2_correlation(image: np.ndarray) -> float | np.floating:
     """
     分析2x2像素相关性 - CFA插值会导致特定的像素相关模式
 
@@ -91,7 +91,7 @@ def _analyze_2x2_correlation(image: np.ndarray) -> float:
     return 1.0 - min(avg_var / max_var, 1.0)
 
 
-def _analyze_channel_differences(image: np.ndarray) -> float:
+def _analyze_channel_differences(image: np.ndarray) -> float | np.floating:
     """
     分析颜色通道差异 - CFA插值会导致特定的通道间关系
 
@@ -140,7 +140,7 @@ def _analyze_channel_differences(image: np.ndarray) -> float:
     return 1.0 - min(avg_diff_var / max_var, 1.0)
 
 
-def _analyze_frequency_pattern(image: np.ndarray) -> float:
+def _analyze_frequency_pattern(image: np.ndarray) -> float | np.floating:
     """
     分析频域特征 - CFA插值会在频域留下特定模式
 

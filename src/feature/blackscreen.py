@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def analyze_blackscreen(image: np.ndarray | None) -> float:
+def analyze_blackscreen(image: np.ndarray | None) -> float | np.floating:
     """Detect black screen photos.
 
     Black screens have very low brightness with many dark pixels.

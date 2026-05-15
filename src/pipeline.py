@@ -72,7 +72,9 @@ class ImageSourceClassifier:
         # 综合判断
         return self._make_decision(screen_content, imaging_features)
 
-    def _detect_screen_content(self, image: np.ndarray) -> dict[str, float]:
+    def _detect_screen_content(
+        self, image: np.ndarray
+    ) -> dict[str, float | dict[str, float]]:
         """
         Stage1: 检测屏幕内容
 

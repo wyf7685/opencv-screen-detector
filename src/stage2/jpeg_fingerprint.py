@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def analyze_jpeg_fingerprint(image: np.ndarray) -> float:
+def analyze_jpeg_fingerprint(image: np.ndarray) -> float | np.floating:
     """
     分析JPEG量化表指纹
 
@@ -40,7 +40,7 @@ def analyze_jpeg_fingerprint(image: np.ndarray) -> float:
     return min(max(jpeg_score, 0.0), 1.0)
 
 
-def _analyze_dct_histogram(gray: np.ndarray) -> float:
+def _analyze_dct_histogram(gray: np.ndarray) -> float | np.floating:
     """
     分析DCT块直方图 - JPEG压缩会在DCT域留下特征
 
@@ -86,7 +86,7 @@ def _analyze_dct_histogram(gray: np.ndarray) -> float:
     return 1.0 - min(freq_ratio, 1.0)
 
 
-def _analyze_jpeg_artifacts(gray: np.ndarray) -> float:
+def _analyze_jpeg_artifacts(gray: np.ndarray) -> float | np.floating:
     """
     分析JPEG压缩伪影
 
@@ -127,7 +127,7 @@ def _analyze_jpeg_artifacts(gray: np.ndarray) -> float:
     return min(mean_boundary_diff / 10.0, 1.0)
 
 
-def _analyze_quantization_pattern(gray: np.ndarray) -> float:
+def _analyze_quantization_pattern(gray: np.ndarray) -> float | np.floating:
     """
     分析量化表特征
 

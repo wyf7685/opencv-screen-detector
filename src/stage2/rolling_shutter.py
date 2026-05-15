@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 
-def analyze_rolling_shutter(image: np.ndarray) -> float:
+def analyze_rolling_shutter(image: np.ndarray) -> float | np.floating:
     """
     检测图像中的滚动快门效应
 
@@ -40,7 +40,7 @@ def analyze_rolling_shutter(image: np.ndarray) -> float:
     return min(max(rolling_shutter_score, 0.0), 1.0)
 
 
-def _detect_horizontal_line_tilt(gray: np.ndarray) -> float:
+def _detect_horizontal_line_tilt(gray: np.ndarray) -> float | np.floating:
     """
     检测水平线倾斜 - 滚动快门会导致水平线倾斜
 
@@ -88,7 +88,7 @@ def _detect_horizontal_line_tilt(gray: np.ndarray) -> float:
     return min(angle_variance / max_variance, 1.0)
 
 
-def _detect_directional_motion_blur(gray: np.ndarray) -> float:
+def _detect_directional_motion_blur(gray: np.ndarray) -> float | np.floating:
     """
     检测运动模糊方向性
 
@@ -135,7 +135,7 @@ def _detect_directional_motion_blur(gray: np.ndarray) -> float:
     return 1.0 - min(avg_consistency / np.pi, 1.0)
 
 
-def _detect_scanline_artifacts(gray: np.ndarray) -> float:
+def _detect_scanline_artifacts(gray: np.ndarray) -> float | np.floating:
     """
     检测扫描线伪影
 
