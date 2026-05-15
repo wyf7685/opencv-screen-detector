@@ -17,10 +17,15 @@ data/models/
 # scripts (download tools)
 scripts/
 *.json
+!config/rules.json
+
+# models
+data/features_cache.json
 
 # claude
 .claude/
 CLAUDE.md
+new_plan.md
 
 # format
 ruff.toml

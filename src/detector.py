@@ -28,6 +28,7 @@ from src.utils.image_metadata import camera_exif_score
 class ScreenDetector:
     def __init__(self, max_workers: int = 4) -> None:
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._ml_model = MLModel()
 
     def __del__(self) -> None:
         self._executor.shutdown(wait=False)
@@ -36,7 +37,6 @@ class ScreenDetector:
         image = load_image(image_path)
         processed = preprocess_image(image)
 
-        # Define feature extraction tasks
         feature_tasks = {
             "frequency": (analyze_frequency, processed),
             "banding": (analyze_banding, processed),
@@ -58,7 +58,6 @@ class ScreenDetector:
             "color_noise": (analyze_color_noise, image),
         }
 
-        # Execute feature extraction in parallel
         features = {}
         future_to_name = {
             self._executor.submit(func, arg): name
@@ -73,16 +72,22 @@ class ScreenDetector:
                 features[name] = 0.0
 
         rule_score = compute_score(features)
-        model_probability = MLModel().predict(features)
         adjusted_score = RULE_ENGINE.apply(rule_score, features)
-        score = adjusted_score
-        result = "screen_photo" if score >= THRESHOLD else "normal"
+
+        if self._ml_model.is_loaded:
+            ml_label, ml_probability = self._ml_model.predict(features)
+            result = ml_label
+            score = ml_probability
+        else:
+            ml_probability = 0.5
+            score = adjusted_score
+            result = "screen_photo" if score >= THRESHOLD else "normal"
 
         return {
             "filename": Path(image_path).name,
             "score": round(score, 4),
             "result": result,
-            "model_probability": round(model_probability, 4),
+            "model_probability": round(ml_probability, 4),
             "rule_score": round(rule_score, 4),
             "features": features,
         }

@@ -50,7 +50,9 @@ class TestDetectorAndOutput(unittest.TestCase):
 
     def test_main_orchestrates_detector_and_export(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
-            image_path = Path(tmp_dir) / "input.png"
+            input_dir = Path(tmp_dir) / "input"
+            input_dir.mkdir()
+            image_path = input_dir / "input.png"
             self._write_image(image_path)
             captured = {}
 
@@ -59,15 +61,27 @@ class TestDetectorAndOutput(unittest.TestCase):
                 captured["output_path"] = Path(output_path)
 
             with (
-                patch("src.main.load_images", return_value=[str(image_path)]),
+                patch("src.main.Path") as mock_path_cls,
                 patch("src.main.save_json", side_effect=fake_save_json),
             ):
+                # Make Path("./data/input") return our temp input dir
+                original_path = Path
+
+                def path_side_effect(path_str):
+                    if path_str == "./data/input":
+                        return original_path(input_dir)
+                    return original_path(path_str)
+
+                mock_path_cls.side_effect = path_side_effect
+                # Make Path() constructor work normally for other uses
+                mock_path_cls.return_value = original_path(tmp_dir)
                 run_main()
 
             self.assertEqual(
                 ["input.png"], [item["filename"] for item in captured["data"]]
             )
-            self.assertEqual(Path("data/output/result.json"), captured["output_path"])
+            expected_path = original_path("data/output/result.json")
+            self.assertEqual(expected_path, captured["output_path"])
 
     @staticmethod
     def _write_image(path: Path) -> None:

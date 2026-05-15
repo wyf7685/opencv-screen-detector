@@ -1,0 +1,236 @@
+{
+  "weights": {
+    "frequency": -0.15,
+    "banding": 0.048,
+    "blackscreen": 0.03,
+    "chroma": -0.055,
+    "softness": 0.181,
+    "illumination": 0.131,
+    "artifact": -0.081,
+    "rectangle": 0.111,
+    "display_content": -0.116,
+    "overexposed": -0.002,
+    "perspective": -0.013,
+    "moire": -0.060,
+    "reflection": -0.008,
+    "sensor_noise": 0.15,
+    "subpixel_fringing": -0.009,
+    "exif_camera": 0.054,
+    "format_score": 0.088,
+    "color_noise": 0.020
+  },
+  "threshold": 0.23,
+  "rules": [
+    {
+      "name": "ui_screenshot_with_high_sensor_noise",
+      "delta": -0.12,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": ">", "value": 0.95},
+          {"feature": "softness", "op": "<", "value": 0.74},
+          {"feature": "artifact", "op": "<", "value": 0.10},
+          {"feature": "moire", "op": ">", "value": 0.80}
+        ]
+      }
+    },
+    {
+      "name": "black_screen_photo",
+      "delta": 0.06,
+      "condition": {
+        "all": [
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "softness", "op": ">", "value": 0.95},
+          {"feature": "blackscreen", "op": ">", "value": 0.50},
+          {"feature": "sensor_noise", "op": "<", "value": 0.40},
+          {"feature": "illumination", "op": "<", "value": 0.60}
+        ]
+      }
+    },
+    {
+      "name": "clean_screenshot_with_screen_like_features",
+      "delta": -0.06,
+      "condition": {
+        "all": [
+          {"feature": "softness", "op": ">", "value": 0.90},
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "artifact", "op": "<", "value": 0.08},
+          {"feature": "rectangle", "op": ">", "value": 0.10},
+          {"feature": "sensor_noise", "op": ">", "value": 0.30}
+        ]
+      }
+    },
+    {
+      "name": "high_softness_high_moire_low_artifact",
+      "delta": -0.08,
+      "condition": {
+        "all": [
+          {"feature": "softness", "op": ">", "value": 0.80},
+          {"feature": "moire", "op": ">", "value": 0.90},
+          {"feature": "artifact", "op": "<", "value": 0.10},
+          {"feature": "rectangle", "op": ">", "value": 0.15}
+        ]
+      }
+    },
+    {
+      "name": "normal_image_with_geometric_structure",
+      "delta": -0.06,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": "<", "value": 0.85},
+          {"feature": "softness", "op": ">", "value": 0.85},
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "artifact", "op": ">=", "value": 0.10},
+          {"feature": "rectangle", "op": ">", "value": 0.13}
+        ]
+      }
+    },
+    {
+      "name": "screen_photo_low_noise_high_softness",
+      "delta": 0.06,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": "<", "value": 0.30},
+          {"feature": "softness", "op": ">", "value": 0.95},
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "illumination", "op": ">", "value": 0.35}
+        ]
+      }
+    },
+    {
+      "name": "screen_photo_high_softness_moire_blackscreen",
+      "delta": 0.06,
+      "condition": {
+        "all": [
+          {"feature": "softness", "op": ">", "value": 0.89},
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "blackscreen", "op": ">", "value": 0.80},
+          {"feature": "sensor_noise", "op": ">", "value": 0.45}
+        ]
+      }
+    },
+    {
+      "name": "normal_high_blackscreen_softness_moire",
+      "delta": -0.06,
+      "condition": {
+        "all": [
+          {"feature": "blackscreen", "op": ">", "value": 0.70},
+          {"feature": "softness", "op": ">", "value": 0.85},
+          {"feature": "moire", "op": ">", "value": 0.90},
+          {"feature": "artifact", "op": "<", "value": 0.10},
+          {"feature": "sensor_noise", "op": "<", "value": 0.50}
+        ]
+      }
+    },
+    {
+      "name": "normal_high_sensor_noise_blackscreen_moire",
+      "delta": -0.06,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": ">", "value": 0.90},
+          {"feature": "blackscreen", "op": ">", "value": 0.70},
+          {"feature": "moire", "op": ">", "value": 0.90}
+        ]
+      }
+    },
+    {
+      "name": "screen_photo_medium_noise_high_blackscreen",
+      "delta": 0.06,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": ">", "value": 0.60},
+          {"feature": "blackscreen", "op": ">", "value": 0.80},
+          {"feature": "softness", "op": ">", "value": 0.85},
+          {"feature": "artifact", "op": "<", "value": 0.10}
+        ]
+      }
+    },
+    {
+      "name": "normal_high_blackscreen_moire_medium_noise",
+      "delta": -0.06,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": ">", "value": 0.60},
+          {"feature": "blackscreen", "op": ">", "value": 0.80},
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "softness", "op": "<", "value": 0.88},
+          {"feature": "artifact", "op": ">", "value": 0.10}
+        ]
+      }
+    },
+    {
+      "name": "normal_high_blackscreen_moire_low_artifact",
+      "delta": -0.06,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": ">", "value": 0.60},
+          {"feature": "blackscreen", "op": ">", "value": 0.70},
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "artifact", "op": "<", "value": 0.10}
+        ]
+      }
+    },
+    {
+      "name": "normal_very_high_noise_blackscreen_artifact",
+      "delta": -0.08,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": ">", "value": 0.95},
+          {"feature": "blackscreen", "op": ">", "value": 0.80},
+          {"feature": "artifact", "op": ">", "value": 0.20},
+          {"feature": "color_noise", "op": "<", "value": 0.30}
+        ]
+      }
+    },
+    {
+      "name": "normal_high_perspective_noise_blackscreen",
+      "delta": -0.06,
+      "condition": {
+        "all": [
+          {"feature": "perspective", "op": ">", "value": 0.70},
+          {"feature": "sensor_noise", "op": ">", "value": 0.60},
+          {"feature": "blackscreen", "op": ">", "value": 0.80},
+          {"feature": "softness", "op": ">", "value": 0.85}
+        ]
+      }
+    },
+    {
+      "name": "normal_low_noise_high_softness_low_illumination",
+      "delta": -0.06,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": "<", "value": 0.30},
+          {"feature": "softness", "op": ">", "value": 0.95},
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "illumination", "op": "<", "value": 0.35},
+          {"feature": "blackscreen", "op": "==", "value": 0.0}
+        ]
+      }
+    },
+    {
+      "name": "normal_medium_noise_high_softness_blackscreen",
+      "delta": -0.06,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": "between", "low": 0.60, "high": 0.85},
+          {"feature": "softness", "op": ">", "value": 0.85},
+          {"feature": "blackscreen", "op": ">", "value": 0.70},
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "artifact", "op": "between", "low": 0.10, "high": 0.25}
+        ]
+      }
+    },
+    {
+      "name": "normal_low_noise_very_high_softness_blackscreen",
+      "delta": -0.12,
+      "condition": {
+        "all": [
+          {"feature": "sensor_noise", "op": "<", "value": 0.40},
+          {"feature": "softness", "op": ">", "value": 0.95},
+          {"feature": "blackscreen", "op": ">", "value": 0.80},
+          {"feature": "moire", "op": ">", "value": 0.95},
+          {"feature": "artifact", "op": "<", "value": 0.05}
+        ]
+      }
+    }
+  ]
+}

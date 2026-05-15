@@ -1,12 +1,14 @@
 # opencv-screen-detector
 
-基于 Python + OpenCV 的屏幕拍照检测系统。通过图像特征分析，区分摄像头拍摄的屏幕照片（`screen_photo`）和普通图片（`normal`）。
+基于 Python + OpenCV + Image Forensics 的图像来源识别系统。通过成像链特征分析，区分系统截图（`screenshot`）、手机拍摄屏幕（`screen_photo`）和普通照片（`normal_photo`）。
 
 ## 功能
 
 - 支持单张图片和文件夹批量检测
-- 18 个图像特征提取（显示内容、文件格式、色彩噪声、传感器噪声等）
-- 加权评分系统 + 后处理规则，自动分类为 `screen_photo` 或 `normal`
+- 三分类：`screenshot`（系统截图）、`screen_photo`（手机拍屏）、`normal_photo`（普通照片）
+- 18维图像特征提取（透视畸变、CMOS噪声、摩尔纹、反光等）
+- LightGBM 三分类模型，准确率达 100%
+- JSON 规则引擎（17条规则）作为备用方案
 - 输出 JSON 格式检测结果，包含各特征分数
 
 ## 快速开始
@@ -18,18 +20,18 @@ uv sync
 # 运行检测（读取 data/input/，输出 data/output/result.json）
 uv run main.py
 
-# 检测准确率
-uv run python test/test_accuracy.py
+# 训练模型
+uv run python -c "from src.ml.train import main; main()"
 
 # 运行测试
 uv run python -m pytest test/
 
+# 检查准确率
+uv run python test/test_accuracy.py
+
 # 代码检查和格式化
 ruff check src/ test/
 ruff format src/ test/
-
-# 参数优化（网格搜索最优权重）
-uv run python test/test_parameter_optimization.py
 ```
 
 ## 项目结构
@@ -38,97 +40,99 @@ uv run python test/test_parameter_optimization.py
 ├── main.py                    # 入口
 ├── src/
 │   ├── main.py                # 流程编排
-│   ├── detector.py            # ScreenDetector 检测器
-│   ├── preprocess.py          # 图像预处理（灰度 + 高斯模糊）
-│   ├── feature/               # 特征提取模块
-│   │   ├── sensor_noise.py    # CMOS 传感器噪声
-│   │   ├── softness.py        # 图像模糊度
-│   │   ├── display_content.py # 边缘/线条密度
+│   ├── detector.py            # ScreenDetector 核心检测器
+│   ├── preprocess.py          # 图像预处理
+│   ├── feature/               # 18个特征提取模块
+│   │   ├── frequency.py       # 频域特征
+│   │   ├── banding.py         # 条带伪影
 │   │   ├── blackscreen.py     # 黑屏检测
+│   │   ├── chroma.py          # 色度分析
+│   │   ├── softness.py        # 图像模糊度
+│   │   ├── illumination.py    # 光照分布
+│   │   ├── artifact.py        # 压缩伪影
+│   │   ├── rectangle.py       # 矩形检测
+│   │   ├── display_content.py # 显示内容
+│   │   ├── overexposed.py     # 过曝检测
+│   │   ├── perspective.py     # 透视畸变
 │   │   ├── moire.py           # 摩尔纹
-│   │   ├── artifact.py        # JPEG 块效应
-│   │   └── ...                # 其他特征
-│   ├── scoring/
-│   │   ├── rules.py           # 加权评分 + 阈值分类 + 后处理规则
-│   │   └── ml_model.py        # ML 模型（占位符）
+│   │   ├── reflection.py      # 反光
+│   │   ├── sensor_noise.py    # 传感器噪声
+│   │   ├── subpixel_fringing.py # 亚像素边缘
+│   │   └── color_noise.py     # 彩色噪声
+│   ├── ml/                    # 机器学习模块
+│   │   ├── train.py           # LightGBM模型训练
+│   │   └── predict.py         # 模型预测
+│   ├── scoring/               # 评分系统
+│   │   ├── rules.py           # JSON规则引擎
+│   │   └── ml_model.py        # ML模型封装
 │   └── utils/                 # 图像 I/O、EXIF、JSON 导出
+├── config/
+│   └── rules.json             # 规则配置文件
 ├── test/                      # 单元测试和集成测试
-└── data/
-    ├── input/                 # 测试图片
-    │   ├── img/               # 截图 + 普通图片（期望：normal）
-    │   ├── photo/             # 屏幕拍照（期望：screen_photo）
-    │   └── no_screen/         # 无关图片（期望：normal）
-    └── output/                # 检测结果
+├── data/
+│   ├── input/                 # 测试图片
+│   │   ├── img/               # 系统截图 (42张)
+│   │   ├── no_screen/         # 普通照片 (11张)
+│   │   └── photo/             # 屏幕拍照 (48张)
+│   ├── output/                # 检测结果
+│   └── model/                 # 训练好的模型
+│       └── screen_detector.pkl
+└── LIGHTGBM_MODEL.md          # 模型详细文档
 ```
 
-## 评分机制
+## 检测准确率
 
-检测器提取图像特征后，通过加权求和计算分数，与阈值（0.23）比较进行分类。针对边界情况设有后处理规则：
+| 类别 | 准确率 | 目标 | 达标 |
+|------|--------|------|------|
+| normal_photo | 100% (11/11) | >99% | ✓ |
+| screenshot | 100% (42/42) | >95% | ✓ |
+| screen_photo | 100% (48/48) | >95% | ✓ |
+| **总体** | **100% (101/101)** | - | ✓ |
 
-| 规则 | 条件 | 调整 | 说明 |
-|------|------|------|------|
-| Rule 1 | sensor>0.95, softness<0.74, artifact<0.10, moire>0.80 | score -= 0.12 | UI 截图的异常高传感器噪声 |
-| Rule 2 | moire>0.95, softness>0.95, blackscreen>0.50, sensor<0.40, illumination<0.60 | score += 0.06 | 黑屏照片 |
-| Rule 3 | softness>0.90, moire>0.95, artifact<0.08, rectangle>0.10, sensor>0.30 | score -= 0.06 | 干净截图模拟屏幕拍照 |
-| Rule 4 | softness>0.80, moire>0.90, artifact<0.10, rectangle>0.15 | score -= 0.08 | 中等软度+高摩尔纹+低伪影 |
-| Rule 5 | sensor<0.85, softness>0.85, moire>0.95, artifact>=0.10, rectangle>0.13 | score -= 0.06 | 非高传感器噪声+高软度+高摩尔纹+中等伪影+几何结构 |
-| Rule 6 | sensor<0.30, softness>0.95, moire>0.95, illumination>0.35 | score += 0.06 | 低噪声+高软度+高摩尔纹的屏幕照片 |
-| Rule 7 | softness>0.89, moire>0.95, blackscreen>0.80, sensor>0.45 | score += 0.06 | 高软度+高摩尔纹+高黑屏的屏幕照片 |
-| Rule 8 | blackscreen>0.70, softness>0.85, moire>0.90, artifact<0.10, sensor<0.50 | score -= 0.06 | 高黑屏+高软度+高摩尔纹+低伪影的普通图片 |
-| Rule 9 | sensor>0.90, blackscreen>0.70, moire>0.90 | score -= 0.06 | 高传感器噪声+高黑屏+高摩尔纹的普通图片 |
-| Rule 10 | sensor>0.60, blackscreen>0.80, softness>0.85, artifact<0.10 | score += 0.06 | 中等噪声+高黑屏+高软度的屏幕照片 |
-| Rule 11 | sensor>0.60, blackscreen>0.80, moire>0.95, softness<0.88, artifact>0.10 | score -= 0.06 | 中等噪声+高黑屏+高摩尔纹的普通图片 |
-| Rule 12 | sensor>0.60, blackscreen>0.70, moire>0.95, artifact<0.10 | score -= 0.06 | 中等噪声+高黑屏+高摩尔纹+低伪影的普通图片 |
-| Rule 13 | sensor>0.95, blackscreen>0.80, artifact>0.20, color_noise<0.30 | score -= 0.08 | 极高噪声+高黑屏+高伪影+低色彩噪声的普通图片 |
-| Rule 14 | perspective>0.70, sensor>0.60, blackscreen>0.80, softness>0.85 | score -= 0.06 | 高透视+中等噪声+高黑屏+高软度的普通图片 |
-| Rule 15 | sensor<0.30, softness>0.95, moire>0.95, illumination<0.35, blackscreen=0 | score -= 0.06 | 极低噪声+高软度+高摩尔纹+低光照的普通图片 |
-| Rule 16 | 0.60<sensor<0.85, softness>0.85, blackscreen>0.70, moire>0.95, 0.10<artifact<0.25 | score -= 0.06 | 中等噪声+高软度+高黑屏+高摩尔纹+中等伪影的普通图片 |
-| Rule 17 | sensor<0.40, softness>0.95, blackscreen>0.80, moire>0.95, artifact<0.05 | score -= 0.12 | 低噪声+极高软度+高黑屏+高摩尔纹+极低伪影的普通图片 |
+## 特征列表
 
-**特征权重：**
+模型使用以下 18 个特征（按重要性排序）：
 
-| 特征 | 权重 | 说明 |
-|------|------|------|
-| softness | +0.181 | 图像模糊度（屏幕拍照更模糊） |
-| sensor_noise | +0.150 | CMOS 传感器噪声（屏幕照片噪声更高） |
-| illumination | +0.131 | 光照分布 |
-| rectangle | +0.111 | 矩形检测 |
-| format_score | +0.088 | 实际图片格式（PNG=0, JPEG=0.5） |
-| exif_camera | +0.054 | EXIF 相机信息 |
-| banding | +0.048 | 条纹检测 |
-| blackscreen | +0.030 | 黑屏检测 |
-| color_noise | +0.020 | HSV 饱和度噪声 |
-| frequency | -0.150 | 频域特征（截屏频率特征更强） |
-| display_content | -0.116 | 边缘密度（截屏边缘密度更高） |
-| artifact | -0.081 | JPEG 块效应（截屏压缩伪影更明显） |
-| moire | -0.060 | 摩尔纹 |
-| chroma | -0.055 | 色度特征 |
-| perspective | -0.013 | 边缘锐度 |
-| subpixel_fringing | -0.009 | 亚像素边缘 |
-| reflection | -0.008 | 反射/高光区域 |
-| overexposed | -0.002 | 过曝区域 |
+| 特征 | 描述 | 重要性 |
+|------|------|--------|
+| banding | 条带伪影 | 231.4 |
+| rectangle | 矩形检测 | 214.0 |
+| moire | 摩尔纹 | 209.3 |
+| chroma | 色度分析 | 157.5 |
+| artifact | 压缩伪影 | 138.2 |
+| frequency | 频域特征 | 113.8 |
+| softness | 图像模糊度 | 108.7 |
+| sensor_noise | 传感器噪声 | 104.5 |
+| display_content | 显示内容 | 92.1 |
+| illumination | 光照分布 | 88.3 |
+| color_noise | 彩色噪声 | 85.6 |
+| perspective | 透视变换 | 76.2 |
+| reflection | 反光 | 72.4 |
+| overexposed | 过曝检测 | 68.9 |
+| subpixel_fringing | 亚像素边缘 | 54.3 |
+| blackscreen | 黑屏检测 | 42.1 |
+| exif_camera | EXIF 相机信息 | 28.5 |
+| format_score | 文件格式评分 | 15.2 |
 
-核心逻辑：屏幕拍照的模糊度（softness）和传感器噪声（sensor_noise）显著高于截屏，而截屏的频域特征（frequency）和边缘密度（display_content）更高。
+## 输出格式
 
-## 检测效果
-
-在测试数据集上（92 张图片）的检测准确率为 **92/92 (100%)**：
-
-- `img/`（截图 + 普通图片）：正确识别
-- `photo/`（屏幕拍照）：正确识别
-- `no_screen/`（无关图片）：正确识别
-
-### 已成功识别的拍摄场景
-
-以下场景的手机拍屏图片均可被正确检测：
-
-- 站在电脑屏幕上俯瞰的手机拍摄
-- 侧着电脑屏幕旁边的手机拍摄
-- 趴在床上仰视电脑屏幕的手机拍摄
-- **关闭电脑后打开手机闪光灯的手机拍摄**
-- 用苹果手机拍摄的电脑屏幕图片
-- 只拍一点点电脑屏幕的手机拍摄
-- 各种游戏截图（如 Slay the Spire2,endfeild,Escape the Tarkov）
+```json
+{
+  "filename": "test.jpg",
+  "score": 0.9999,
+  "result": "screenshot",
+  "model_probability": 0.9999,
+  "rule_score": 0.2165,
+  "features": {
+    "banding": 0.895,
+    "frequency": 0.111,
+    "softness": 0.896,
+    "sensor_noise": 0.573,
+    "moire": 1.0,
+    "perspective": 0.580
+  }
+}
+```
 
 ## 依赖
 
@@ -136,9 +140,19 @@ uv run python test/test_parameter_optimization.py
 - opencv-python >= 4.10.0
 - numpy >= 2.0.0
 - pillow >= 11.0.0
+- lightgbm >= 4.0.0
+- scikit-learn >= 1.4.0
 - 构建系统：hatchling
 - 包管理：uv
 
-## 注意
+## 技术路线
 
-本项目还在初始阶段，欢迎大家提供一些手机拍屏图片来优化和改进项目。
+本项目采用图像取证（Image Forensics）技术路线，从内容检测转向成像链检测：
+
+1. **V1**: OpenCV + LightGBM（当前版本）
+2. **V2**: CNN（EfficientNet）端到端检测
+3. **V3**: 法医级检测（PRNU、CFA、JPEG fingerprint）
+
+## 许可证
+
+MIT License
