@@ -1,144 +1,198 @@
-# opencv-screen-detector
+# Screen Detector V3
 
-基于 Python + OpenCV 的屏幕拍照检测系统。通过图像特征分析，区分摄像头拍摄的屏幕照片（`screen_photo`）和普通图片（`normal`）。
+基于 Python + OpenCV + CNN 的三类图像来源识别系统。
 
-## 功能
+## 系统架构
 
-- 支持单张图片和文件夹批量检测
-- 18 个图像特征提取（显示内容、文件格式、色彩噪声、传感器噪声等）
-- 加权评分系统 + 后处理规则，自动分类为 `screen_photo` 或 `normal`
-- 输出 JSON 格式检测结果，包含各特征分数
+采用**两阶段 CNN + FFT Branch**架构：
+
+```
+Image
+   ↓
+Stage 1 CNN (EfficientNet-B0 + FFT Branch)
+   ↓
+natural / screen_like?
+   ↓ natural → 返回 "natural"
+   ↓ screen_like
+   ↓
+Stage 2 CNN (EfficientNet-B0 + FFT Branch)
+   ↓
+screenshot / screen_photo?
+   ↓ → 返回 "screen_like" 或 "screen_photo"
+```
+
+### 标签体系
+
+| 标签 | 含义 | 包含内容 |
+|------|------|----------|
+| `natural` | 真实自然图像 | 风景、人像、室内、动物、食物、街景、天空、树木 |
+| `screen_like` | 屏幕内容 | 截图、PPT、IDE、UI、terminal、聊天记录、软件界面 |
+| `screen_photo` | 相机拍摄屏幕 | 手机拍摄的屏幕照片 |
+
+### 置信度分级
+
+| 置信度 | 处理方式 |
+|--------|----------|
+| >= 0.92 | 直接输出 (accept) |
+| 0.75 - 0.92 | 人工审核 (review) |
+| < 0.75 | 忽略 (ignore) |
+| < 0.65 | OOD 检测，返回 unknown |
 
 ## 快速开始
 
+### 安装依赖
+
 ```bash
-# 安装依赖
 uv sync
+```
 
-# 运行检测（读取 data/input/，输出 data/output/result.json）
-uv run main.py
+### 启动 API 服务
 
-# 检测准确率
-uv run python test/test_accuracy.py
+```bash
+uv run python main.py
+```
 
-# 运行测试
-uv run python -m pytest test/
+API 服务运行在 `http://localhost:8325`
 
-# 代码检查和格式化
-ruff check src/ test/
-ruff format src/ test/
+### 测试接口
 
-# 参数优化（网格搜索最优权重）
-uv run python test/test_parameter_optimization.py
+```bash
+# 健康检查
+curl http://localhost:8325/api/health
+
+# 文件上传检测
+curl -X POST http://localhost:8325/api/detect/upload \
+  -F "file=@test.jpg"
+
+# URL 检测
+curl -X POST http://localhost:8325/api/detect \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/test.jpg"}'
 ```
 
 ## 项目结构
 
 ```
-├── main.py                    # 入口
-├── src/
-│   ├── main.py                # 流程编排
-│   ├── detector.py            # ScreenDetector 检测器
-│   ├── preprocess.py          # 图像预处理（灰度 + 高斯模糊）
-│   ├── feature/               # 特征提取模块
-│   │   ├── sensor_noise.py    # CMOS 传感器噪声
-│   │   ├── softness.py        # 图像模糊度
-│   │   ├── display_content.py # 边缘/线条密度
-│   │   ├── blackscreen.py     # 黑屏检测
-│   │   ├── moire.py           # 摩尔纹
-│   │   ├── artifact.py        # JPEG 块效应
-│   │   └── ...                # 其他特征
-│   ├── scoring/
-│   │   ├── rules.py           # 加权评分 + 阈值分类 + 后处理规则
-│   │   └── ml_model.py        # ML 模型（占位符）
-│   └── utils/                 # 图像 I/O、EXIF、JSON 导出
-├── test/                      # 单元测试和集成测试
-└── data/
-    ├── input/                 # 测试图片
-    │   ├── img/               # 截图 + 普通图片（期望：normal）
-    │   ├── photo/             # 屏幕拍照（期望：screen_photo）
-    │   └── no_screen/         # 无关图片（期望：normal）
-    └── output/                # 检测结果
+opencv-screen-detector/
+├── main.py                         # API 入口
+├── pyproject.toml                  # 推理端依赖
+├── config/
+│   └── thresholds.json             # 阈值配置
+├── inference/                      # 推理系统
+│   ├── models/
+│   │   ├── stage1_natural_vs_screenlike.onnx
+│   │   └── stage2_screenlike_vs_screenphoto.onnx
+│   └── src/
+│       ├── config.py               # 推理配置
+│       ├── predictor.py            # 两阶段推理器 (TTA/OOD/缓存)
+│       ├── preprocess.py           # RGB 预处理
+│       ├── fft_transform.py        # FFT 频谱变换
+│       ├── unified_api.py          # FastAPI 服务
+│       ├── batch_detect.py         # 批量检测
+│       ├── image_index.py          # 图片索引
+│       └── scheduler.py            # 后台清理
+├── trainer/                        # 训练系统
+│   ├── pyproject.toml              # 训练端依赖
+│   └── src/
+│       ├── config.py               # 训练配置
+│       ├── model.py                # 融合模型 (EfficientNet + FFT Branch)
+│       ├── fft_branch.py           # Frequency Branch (ResBlock)
+│       ├── dataset.py              # 双输入数据集
+│       ├── train.py                # 两阶段训练 (AMP)
+│       ├── validate.py             # 验证指标
+│       ├── augment.py              # 数据增强
+│       └── export_onnx.py          # ONNX 导出
+├── tests/                          # 测试
+│   ├── conftest.py
+│   ├── test_accuracy.py
+│   ├── test_predictor.py
+│   ├── test_fft_transform.py
+│   ├── test_dataset.py
+│   └── test_api.py
+├── data/
+│   ├── input/
+│   │   ├── natural_photo/          # 自然照片 (含子目录)
+│   │   ├── screen_like/            # 屏幕内容
+│   │   ├── screenshot/             # 截图
+│   │   ├── screen_photo/           # 拍屏照片
+│   │   └── hard_negative/          # 难例负样本
+│   ├── upload/                     # API 上传缓存
+│   └── image_index.json            # 图片索引
+└── scripts/
+    └── fetch_natural_photos.py     # 数据爬取脚本
 ```
 
-## 评分机制
+## API 文档
 
-检测器提取图像特征后，通过加权求和计算分数，与阈值（0.23）比较进行分类。针对边界情况设有后处理规则：
+### POST /api/detect/upload
 
-| 规则 | 条件 | 调整 | 说明 |
-|------|------|------|------|
-| Rule 1 | sensor>0.95, softness<0.74, artifact<0.10, moire>0.80 | score -= 0.12 | UI 截图的异常高传感器噪声 |
-| Rule 2 | moire>0.95, softness>0.95, blackscreen>0.50, sensor<0.40, illumination<0.60 | score += 0.06 | 黑屏照片 |
-| Rule 3 | softness>0.90, moire>0.95, artifact<0.08, rectangle>0.10, sensor>0.30 | score -= 0.06 | 干净截图模拟屏幕拍照 |
-| Rule 4 | softness>0.80, moire>0.90, artifact<0.10, rectangle>0.15 | score -= 0.08 | 中等软度+高摩尔纹+低伪影 |
-| Rule 5 | sensor<0.85, softness>0.85, moire>0.95, artifact>=0.10, rectangle>0.13 | score -= 0.06 | 非高传感器噪声+高软度+高摩尔纹+中等伪影+几何结构 |
-| Rule 6 | sensor<0.30, softness>0.95, moire>0.95, illumination>0.35 | score += 0.06 | 低噪声+高软度+高摩尔纹的屏幕照片 |
-| Rule 7 | softness>0.89, moire>0.95, blackscreen>0.80, sensor>0.45 | score += 0.06 | 高软度+高摩尔纹+高黑屏的屏幕照片 |
-| Rule 8 | blackscreen>0.70, softness>0.85, moire>0.90, artifact<0.10, sensor<0.50 | score -= 0.06 | 高黑屏+高软度+高摩尔纹+低伪影的普通图片 |
-| Rule 9 | sensor>0.90, blackscreen>0.70, moire>0.90 | score -= 0.06 | 高传感器噪声+高黑屏+高摩尔纹的普通图片 |
-| Rule 10 | sensor>0.60, blackscreen>0.80, softness>0.85, artifact<0.10 | score += 0.06 | 中等噪声+高黑屏+高软度的屏幕照片 |
-| Rule 11 | sensor>0.60, blackscreen>0.80, moire>0.95, softness<0.88, artifact>0.10 | score -= 0.06 | 中等噪声+高黑屏+高摩尔纹的普通图片 |
-| Rule 12 | sensor>0.60, blackscreen>0.70, moire>0.95, artifact<0.10 | score -= 0.06 | 中等噪声+高黑屏+高摩尔纹+低伪影的普通图片 |
-| Rule 13 | sensor>0.95, blackscreen>0.80, artifact>0.20, color_noise<0.30 | score -= 0.08 | 极高噪声+高黑屏+高伪影+低色彩噪声的普通图片 |
-| Rule 14 | perspective>0.70, sensor>0.60, blackscreen>0.80, softness>0.85 | score -= 0.06 | 高透视+中等噪声+高黑屏+高软度的普通图片 |
-| Rule 15 | sensor<0.30, softness>0.95, moire>0.95, illumination<0.35, blackscreen=0 | score -= 0.06 | 极低噪声+高软度+高摩尔纹+低光照的普通图片 |
-| Rule 16 | 0.60<sensor<0.85, softness>0.85, blackscreen>0.70, moire>0.95, 0.10<artifact<0.25 | score -= 0.06 | 中等噪声+高软度+高黑屏+高摩尔纹+中等伪影的普通图片 |
-| Rule 17 | sensor<0.40, softness>0.95, blackscreen>0.80, moire>0.95, artifact<0.05 | score -= 0.12 | 低噪声+极高软度+高黑屏+高摩尔纹+极低伪影的普通图片 |
+文件上传检测。
 
-**特征权重：**
+**请求**: `multipart/form-data`，字段 `file`
 
-| 特征 | 权重 | 说明 |
-|------|------|------|
-| softness | +0.181 | 图像模糊度（屏幕拍照更模糊） |
-| sensor_noise | +0.150 | CMOS 传感器噪声（屏幕照片噪声更高） |
-| illumination | +0.131 | 光照分布 |
-| rectangle | +0.111 | 矩形检测 |
-| format_score | +0.088 | 实际图片格式（PNG=0, JPEG=0.5） |
-| exif_camera | +0.054 | EXIF 相机信息 |
-| banding | +0.048 | 条纹检测 |
-| blackscreen | +0.030 | 黑屏检测 |
-| color_noise | +0.020 | HSV 饱和度噪声 |
-| frequency | -0.150 | 频域特征（截屏频率特征更强） |
-| display_content | -0.116 | 边缘密度（截屏边缘密度更高） |
-| artifact | -0.081 | JPEG 块效应（截屏压缩伪影更明显） |
-| moire | -0.060 | 摩尔纹 |
-| chroma | -0.055 | 色度特征 |
-| perspective | -0.013 | 边缘锐度 |
-| subpixel_fringing | -0.009 | 亚像素边缘 |
-| reflection | -0.008 | 反射/高光区域 |
-| overexposed | -0.002 | 过曝区域 |
+**响应**:
+```json
+{
+  "image_id": "uuid",
+  "filename": "test.jpg",
+  "class_name": "screen_photo",
+  "confidence": 0.9759,
+  "probabilities": {"natural": 0.01, "screen_like": 0.01, "screen_photo": 0.98},
+  "stage": 2,
+  "confidence_tier": "high",
+  "action": "accept"
+}
+```
 
-核心逻辑：屏幕拍照的模糊度（softness）和传感器噪声（sensor_noise）显著高于截屏，而截屏的频域特征（frequency）和边缘密度（display_content）更高。
+### POST /api/detect
 
-## 检测效果
+URL 检测。
 
-在测试数据集上（92 张图片）的检测准确率为 **92/92 (100%)**：
+**请求**: `application/json`
+```json
+{"url": "https://example.com/test.jpg"}
+```
 
-- `img/`（截图 + 普通图片）：正确识别
-- `photo/`（屏幕拍照）：正确识别
-- `no_screen/`（无关图片）：正确识别
+### GET /api/health
 
-### 已成功识别的拍摄场景
+健康检查。
 
-以下场景的手机拍屏图片均可被正确检测：
+## 训练指南
 
-- 站在电脑屏幕上俯瞰的手机拍摄
-- 侧着电脑屏幕旁边的手机拍摄
-- 趴在床上仰视电脑屏幕的手机拍摄
-- **关闭电脑后打开手机闪光灯的手机拍摄**
-- 用苹果手机拍摄的电脑屏幕图片
-- 只拍一点点电脑屏幕的手机拍摄
-- 各种游戏截图（如 Slay the Spire2,endfeild,Escape the Tarkov）
+```bash
+cd trainer
+uv sync
+
+# 训练两个阶段
+uv run python -m src.train
+
+# 导出 ONNX 模型
+uv run python -m src.export_onnx
+```
+
+## 测试
+
+```bash
+uv run pytest tests/ -v
+```
 
 ## 依赖
 
-- Python 3.14
-- opencv-python >= 4.10.0
-- numpy >= 2.0.0
-- pillow >= 11.0.0
-- 构建系统：hatchling
-- 包管理：uv
+### 推理端
+- opencv-python-headless
+- numpy
+- pillow
+- fastapi + uvicorn
+- httpx
+- onnxruntime
 
-## 注意
+### 训练端
+- torch + torchvision
+- timm (EfficientNet)
+- albumentations
+- scikit-learn
+- matplotlib
 
-本项目还在初始阶段，欢迎大家提供一些手机拍屏图片来优化和改进项目。
+## License
+
+MIT
