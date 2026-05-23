@@ -10,9 +10,11 @@ wheels/
 .venv
 
 # data
-data/input/
-data/output/
-data/models/
+data/
+trainer/data/
+trainer/logs/
+trainer/checkpoints/
+*.log
 
 #trainer
 trainer/checkpoints
@@ -24,6 +26,7 @@ scripts/
 # claude
 .claude/
 CLAUDE.md
+new_plan.md
 
 # format
 ruff.toml

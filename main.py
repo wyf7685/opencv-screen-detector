@@ -1,11 +1,13 @@
-import runpy
-from pathlib import Path
+"""Screen Detector API - Main entry point."""
 
+import logging
 
-def main() -> None:
-    src_main = Path(__file__).resolve().parent / "src" / "main.py"
-    runpy.run_path(str(src_main), run_name="__main__")
+import uvicorn
 
+from inference.api import app
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host="0.0.0.0", port=8325)  # noqa: S104
