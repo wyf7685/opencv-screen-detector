@@ -7,17 +7,13 @@ Two-stage training with Mixed Precision:
 
 # pyright: reportPrivateImportUsage=none
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-
-if __package__ in (None, ""):
-    import sys
-
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from . import config
 from .augment import get_train_transforms, get_val_transforms
@@ -31,22 +27,13 @@ from .validate import (
 )
 
 
-def _mark_images_trained(dataset) -> None:
-    """Mark all images in dataset as trained in the image index."""
-    try:
-        from inference.image_index import batch_mark_trained
-    except ImportError:
-        return
-
-    image_ids = dataset.get_image_ids()
-    marked_count = batch_mark_trained(*filter(None, image_ids))
-
-    if marked_count > 0:
-        print(f"Marked {marked_count} images as trained in image index")
-
-
 def train_one_epoch(
-    model, train_loader, criterion, optimizer, device="cpu", use_amp=True
+    model: nn.Module,
+    train_loader: Iterable[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
+    criterion,
+    optimizer,
+    device: str = "cpu",
+    use_amp: bool = True,
 ):
     """Train model for one epoch with Mixed Precision."""
     model.train()
@@ -287,8 +274,6 @@ def train_stage(
         best_val_acc=best_val_acc,
     )
 
-    _mark_images_trained(full_dataset)
-
     return model, history, final_metrics
 
 
@@ -316,7 +301,3 @@ def main():
     print(f"Stage 1 Accuracy: {metrics1['accuracy']:.4f}")
     print(f"Stage 2 Accuracy: {metrics2['accuracy']:.4f}")
     print("=" * 60)
-
-
-if __name__ == "__main__":
-    main()

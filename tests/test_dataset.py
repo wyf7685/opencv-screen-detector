@@ -90,19 +90,3 @@ def test_dataset_stage2_label_mapping(data_dir):
         labels.add(label)
 
     assert labels == {0, 1}, f"Expected labels {{0, 1}}, got {labels}"
-
-
-def test_dataset_image_ids(data_dir):
-    """Test dataset tracks image IDs."""
-    from trainer.dataset import TwoInputDataset
-
-    data_map = {
-        "natural": ["natural_photo"],
-        "screen_like": ["screen_like"],
-    }
-
-    dataset = TwoInputDataset(data_map=data_map, data_dir=data_dir)
-
-    image_ids = dataset.get_image_ids()
-    assert len(image_ids) == len(dataset)
-    assert all(isinstance(id, str) for id in image_ids)

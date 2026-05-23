@@ -8,9 +8,9 @@ Two-stage CNN + FFT Branch architecture:
 from pathlib import Path
 
 # Paths
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-TRAINER_ROOT = PROJECT_ROOT / "trainer"
+PROJECT_ROOT = Path(__file__).parent.parent
 DATA_DIR = PROJECT_ROOT / "data" / "input"
+TRAINER_ROOT = PROJECT_ROOT / "trainer"
 CHECKPOINT_DIR = TRAINER_ROOT / "checkpoints"
 LOG_DIR = TRAINER_ROOT / "logs"
 

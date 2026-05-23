@@ -5,6 +5,7 @@ Two-stage CNN architecture with frequency domain analysis.
 
 # pyright: reportPrivateImportUsage=none
 from typing import cast
+
 import timm
 import torch
 import torch.nn as nn

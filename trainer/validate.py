@@ -4,9 +4,13 @@ Includes precision, recall, F1, FPR metrics (修正 #11).
 """
 
 # pyright: reportPrivateImportUsage=none
+from collections.abc import Iterable
+from typing import Any
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.nn as nn
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -16,7 +20,12 @@ from sklearn.metrics import (
 )
 
 
-def validate_model(model, val_loader, device="cpu", class_names=None):  # noqa: ARG001
+def validate_model(
+    model: nn.Module,
+    val_loader: Iterable[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
+    device: str = "cpu",
+    class_names: list[str] | None = None,
+):
     """Validate model on validation set.
 
     Returns:
@@ -90,7 +99,10 @@ def validate_model(model, val_loader, device="cpu", class_names=None):  # noqa: 
     }
 
 
-def print_metrics(metrics, class_names=None) -> None:
+def print_metrics(
+    metrics: dict[str, Any],
+    class_names: list[str] | None = None,
+) -> None:
     """Print validation metrics."""
     if class_names is None:
         class_names = ["class_0", "class_1"]
@@ -130,7 +142,11 @@ def print_metrics(metrics, class_names=None) -> None:
     print("=" * 60)
 
 
-def plot_confusion_matrix(metrics, class_names=None, save_path=None) -> None:
+def plot_confusion_matrix(
+    metrics: dict[str, Any],
+    class_names: list[str] | None = None,
+    save_path: str | None = None,
+) -> None:
     """Plot confusion matrix."""
     if class_names is None:
         class_names = ["class_0", "class_1"]

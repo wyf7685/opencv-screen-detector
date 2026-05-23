@@ -5,50 +5,21 @@ Supports:
 - Recursive subdirectory scanning (for natural_photo/ subfolders)
 - Data map configuration for two-stage training
 """
-# pyright: reportPrivateImportUsage=none
 
-import hashlib
-import json
-import uuid
+# pyright: reportPrivateImportUsage=none
 from pathlib import Path
 
+import albumentations as A
 import cv2
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset, Subset, random_split
 
 from . import config
 
-# Image index path for tracking trained images
-IMAGE_INDEX_PATH = config.PROJECT_ROOT / "data" / "image_index.json"
-
 # Supported image extensions
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-
-
-def _load_image_index() -> dict:
-    """Load image index from JSON file."""
-    if IMAGE_INDEX_PATH.exists():
-        with IMAGE_INDEX_PATH.open(encoding="utf-8") as f:
-            return json.load(f)
-    return {}
-
-
-def _save_image_index(index: dict) -> None:
-    """Save image index to JSON file."""
-    IMAGE_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with IMAGE_INDEX_PATH.open("w", encoding="utf-8") as f:
-        json.dump(index, f, indent=2, ensure_ascii=False)
-
-
-def _get_file_hash(file_path: str) -> str:
-    """Compute MD5 hash of file content."""
-    h = hashlib.md5()  # noqa: S324
-    with Path(file_path).open("rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def compute_fft_spectrum(image_np: np.ndarray, size: int = 224) -> np.ndarray:
@@ -108,16 +79,11 @@ class TwoInputDataset(Dataset):
         self.image_size = image_size
 
         self.samples: list[tuple[str, int]] = []  # (image_path, label_idx)
-        self.image_ids: list[str] = []
 
         self._load_samples(data_map)
 
     def _load_samples(self, data_map: dict[str, list[str]]) -> None:
         """Load all image paths and labels from data map."""
-        index = _load_image_index()
-        hash_to_id = {info["hash"]: img_id for img_id, info in index.items()}
-        index_modified = False
-
         for class_idx, (_class_name, source_dirs) in enumerate(data_map.items()):
             for source_dir in source_dirs:
                 dir_path = self.data_dir / source_dir
@@ -128,57 +94,30 @@ class TwoInputDataset(Dataset):
                 for img_path in dir_path.rglob("*"):
                     if img_path.suffix.lower() not in IMAGE_EXTENSIONS:
                         continue
-
-                    file_hash = _get_file_hash(str(img_path))
-                    img_id = hash_to_id.get(file_hash)
-
-                    # If image not in index, add it
-                    if img_id is None:
-                        img_id = str(uuid.uuid4())
-                        index[img_id] = {
-                            "hash": file_hash,
-                            "filename": img_path.name,
-                            "class": source_dir,
-                            "path": str(img_path),
-                            "trained": False,
-                        }
-                        hash_to_id[file_hash] = img_id
-                        index_modified = True
-
-                    self.image_ids.append(img_id)
                     self.samples.append((str(img_path), class_idx))
-
-        # Save index if modified
-        if index_modified:
-            _save_image_index(index)
 
     def __len__(self) -> int:
         return len(self.samples)
-
-    def get_image_ids(self) -> list[str]:
-        """Get list of image IDs for all samples."""
-        return self.image_ids
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, int]:
         img_path, label = self.samples[idx]
 
         # Load image using PIL (RGB)
-        image = Image.open(img_path).convert("RGB")
-        image_np = np.array(image)
+        image = np.array(Image.open(img_path).convert("RGBA").convert("RGB"))
 
         # RGB 分支
         if self.transform:
-            augmented = self.transform(image=image_np)
+            augmented = self.transform(image=image)
             rgb_tensor = augmented["image"]
         else:
             # Default: resize and normalize
-            image_resized = cv2.resize(image_np, (self.image_size, self.image_size))
+            image_resized = cv2.resize(image, (self.image_size, self.image_size))
             rgb_tensor = (
                 torch.from_numpy(image_resized).permute(2, 0, 1).float() / 255.0
             )
 
         # FFT 分支
-        fft_spectrum = compute_fft_spectrum(image_np, self.image_size)
+        fft_spectrum = compute_fft_spectrum(image, self.image_size)
         fft_tensor = torch.from_numpy(fft_spectrum).float()
 
         return rgb_tensor, fft_tensor, label
@@ -187,7 +126,11 @@ class TwoInputDataset(Dataset):
 class TransformSubset(Dataset):
     """Subset of a dataset with applied transform."""
 
-    def __init__(self, subset, transform=None) -> None:
+    def __init__(
+        self,
+        subset: Subset[tuple[torch.Tensor, torch.Tensor, int]],
+        transform: A.Compose | None = None,
+    ) -> None:
         self.subset = subset
         self.transform = transform
 
@@ -214,8 +157,8 @@ class TransformSubset(Dataset):
 def create_data_loaders(
     data_map: dict[str, list[str]],
     data_dir: Path,
-    transform_train=None,
-    transform_val=None,
+    transform_train: A.Compose | None = None,
+    transform_val: A.Compose | None = None,
     batch_size: int = config.BATCH_SIZE,
     num_workers: int = config.NUM_WORKERS,
     train_ratio: float = config.TRAIN_VAL_SPLIT,
