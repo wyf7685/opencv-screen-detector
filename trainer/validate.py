@@ -48,44 +48,16 @@ def validate_model(model, val_loader, device="cpu", class_names=None):  # noqa: 
 
     # Calculate metrics
     accuracy = accuracy_score(all_labels, all_preds)
-    precision = precision_score(
-        all_labels,
-        all_preds,
-        average=None,  # pyright: ignore[reportArgumentType]
-        zero_division=0,  # pyright: ignore[reportArgumentType]
-    )
-    recall = recall_score(
-        all_labels,
-        all_preds,
-        average=None,  # pyright: ignore[reportArgumentType]
-        zero_division=0,  # pyright: ignore[reportArgumentType]
-    )
-    f1 = f1_score(
-        all_labels,
-        all_preds,
-        average=None,  # pyright: ignore[reportArgumentType]
-        zero_division=0,  # pyright: ignore[reportArgumentType]
-    )
+    precision = precision_score(all_labels, all_preds, average=None, zero_division=0)
+    recall = recall_score(all_labels, all_preds, average=None, zero_division=0)
+    f1 = f1_score(all_labels, all_preds, average=None, zero_division=0)
 
     # Overall metrics
     precision_macro = precision_score(
-        all_labels,
-        all_preds,
-        average="macro",
-        zero_division=0,  # pyright: ignore[reportArgumentType]
+        all_labels, all_preds, average="macro", zero_division=0
     )
-    recall_macro = recall_score(
-        all_labels,
-        all_preds,
-        average="macro",
-        zero_division=0,  # pyright: ignore[reportArgumentType]
-    )
-    f1_macro = f1_score(
-        all_labels,
-        all_preds,
-        average="macro",
-        zero_division=0,  # pyright: ignore[reportArgumentType]
-    )
+    recall_macro = recall_score(all_labels, all_preds, average="macro", zero_division=0)
+    f1_macro = f1_score(all_labels, all_preds, average="macro", zero_division=0)
 
     # Confusion matrix
     cm = confusion_matrix(all_labels, all_preds)
