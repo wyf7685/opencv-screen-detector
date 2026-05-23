@@ -14,6 +14,9 @@ data/input/
 data/output/
 data/models/
 
+#trainer
+trainer/checkpoints
+trainer/logs
 # scripts (download tools)
 scripts/
 *.json
