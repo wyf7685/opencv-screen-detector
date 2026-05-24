@@ -152,7 +152,3 @@ def main() -> None:
         print(f"Stage 2 exported to: {stage2_onnx}")
     else:
         print(f"Stage 2 checkpoint not found: {stage2_checkpoint}")
-
-
-if __name__ == "__main__":
-    main()
