@@ -1,8 +1,7 @@
 import anyio.to_thread
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
-from inference.image_index import image_index
-
+from ..image_index import image_index
 from .predictor import get_predictor
 from .schema import (
     ClassifyRequest,
@@ -32,7 +31,7 @@ async def detect_url(request: DetectRequest) -> DetectResponse:
 
     try:
         entry = await stream_url_to_upload(request.url)
-        return await anyio.to_thread.run_sync(run_detect, entry.path)
+        is_screen = await anyio.to_thread.run_sync(run_detect, entry.path)
     except HTTPException:
         raise
     except Exception as exc:
@@ -40,6 +39,9 @@ async def detect_url(request: DetectRequest) -> DetectResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Detection failed: {exc!r}",
         ) from exc
+    else:
+        await image_index.classify(entry.file_hash, is_screen)
+        return DetectResponse(image_id=entry.file_hash, is_screen=is_screen)
 
 
 @router.post("/detect/upload", response_model=DetectResponse)
@@ -47,7 +49,7 @@ async def detect_upload(file: UploadFile = File()) -> DetectResponse:
     """Detect screen photo from uploaded file."""
     try:
         entry = await stream_file_to_upload(file)
-        return await anyio.to_thread.run_sync(run_detect, entry.path)
+        is_screen = await anyio.to_thread.run_sync(run_detect, entry.path)
     except HTTPException:
         raise
     except Exception as exc:
@@ -55,14 +57,15 @@ async def detect_upload(file: UploadFile = File()) -> DetectResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Detection failed: {exc!r}",
         ) from exc
+    else:
+        await image_index.classify(entry.file_hash, is_screen)
+        return DetectResponse(image_id=entry.file_hash, is_screen=is_screen)
 
 
 @router.post("/classify", response_model=ClassifyResponse)
 async def classify_image(request: ClassifyRequest) -> ClassifyResponse:
-    class_name = "screen_photo" if request.is_screen else "normal_photo"
-
     try:
-        await image_index.classify(request.image_id, class_name)
+        entry = await image_index.classify(request.image_id, request.is_screen)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -72,5 +75,5 @@ async def classify_image(request: ClassifyRequest) -> ClassifyResponse:
     return ClassifyResponse(
         image_id=request.image_id,
         is_screen=request.is_screen,
-        class_name=class_name,
+        class_name=entry.class_name or "unclassified",
     )

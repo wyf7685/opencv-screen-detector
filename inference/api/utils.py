@@ -10,7 +10,6 @@ from fastapi import HTTPException, UploadFile, status
 
 from ..image_index import ImageEntry, image_index
 from .predictor import get_predictor
-from .schema import DetectResponse
 
 
 async def _stream_to_temp(
@@ -111,7 +110,7 @@ async def stream_file_to_upload(file: UploadFile) -> ImageEntry:
     return await image_index.add(file_hash, tmp_path)
 
 
-def run_detect(file_path: Path) -> DetectResponse:
+def run_detect(file_path: Path) -> bool:
     """Run two-stage detection.
 
     Flow:
@@ -125,7 +124,4 @@ def run_detect(file_path: Path) -> DetectResponse:
         raise HTTPException(status_code=503, detail="Predictor not available")
 
     result = predictor.predict(file_path)
-    return DetectResponse(
-        image_id=file_path.stem,
-        is_screen=result["class"] == "screen_photo",
-    )
+    return result["class"] == "screen_photo"
