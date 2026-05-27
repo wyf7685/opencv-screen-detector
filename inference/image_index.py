@@ -73,12 +73,14 @@ class ImageIndex:
             index[file_hash] = entry
         return entry
 
-    async def classify(self, file_hash: str, class_name: str) -> None:
+    async def classify(self, file_hash: str, is_screen: bool) -> ImageEntry:
+        class_name = "screen_photo" if is_screen else "normal_photo"
         async with self.load_index() as index:
             if entry := index.get(file_hash):
                 entry.classify(class_name)
-            else:
-                raise ValueError(f"Image not found: {file_hash}")
+                return entry
+
+            raise ValueError(f"Image not found: {file_hash}")
 
     async def clean_expired(self) -> None:
         now = datetime.now(UTC)
