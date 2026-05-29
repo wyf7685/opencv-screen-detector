@@ -54,6 +54,9 @@ torchvision = { index = "pytorch-cu124" }
 # [tool.hatch.build.targets.wheel]
 # packages = ["inference"]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.pyright]
 pythonVersion = "3.12"
 pythonPlatform = "All"

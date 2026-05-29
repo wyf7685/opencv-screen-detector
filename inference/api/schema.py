@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 
@@ -35,3 +37,16 @@ class ClassifyResponse(BaseModel):
     image_id: str
     is_screen: bool
     class_name: str
+
+
+class PackageRequest(BaseModel):
+    """Request model for packaging images after a timestamp."""
+
+    after_timestamp: datetime
+
+
+class PackageResponse(BaseModel):
+    """Response model for image packaging."""
+
+    file_count: int
+    zip_filename: str

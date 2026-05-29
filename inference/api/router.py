@@ -1,7 +1,12 @@
+import io
+import zipfile
+from datetime import UTC, datetime
+
 import anyio.to_thread
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 
-from ..image_index import image_index
+from ..image_index import INDEX_FILE, ImageEntry, image_index
 from .predictor import get_predictor
 from .schema import (
     ClassifyRequest,
@@ -9,6 +14,7 @@ from .schema import (
     DetectRequest,
     DetectResponse,
     HealthResponse,
+    PackageRequest,
 )
 from .utils import run_detect, stream_file_to_upload, stream_url_to_upload
 
@@ -76,4 +82,58 @@ async def classify_image(request: ClassifyRequest) -> ClassifyResponse:
         image_id=request.image_id,
         is_screen=request.is_screen,
         class_name=entry.class_name or "unclassified",
+    )
+
+
+@router.post("/package")
+async def package_images(request: PackageRequest) -> StreamingResponse:
+    """Package images uploaded after the given timestamp into a zip file.
+
+    Returns a zip file containing all images created after the specified timestamp.
+    """
+    from pydantic import TypeAdapter
+
+    # Load index
+    ta = TypeAdapter(dict[str, ImageEntry])
+    if not INDEX_FILE.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No image index found",
+        )
+
+    index = ta.validate_json(INDEX_FILE.read_bytes())
+
+    # Filter images after timestamp
+    after_time = request.after_timestamp
+    if after_time.tzinfo is None:
+        after_time = after_time.replace(tzinfo=UTC)
+
+    matching_entries = [
+        entry
+        for entry in index.values()
+        if entry.created_at > after_time and entry.path.exists()
+    ]
+
+    if not matching_entries:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No images found after the specified timestamp",
+        )
+
+    # Create zip in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for entry in matching_entries:
+            zf.write(entry.path, entry.file_name)
+
+    zip_buffer.seek(0)
+
+    # Generate filename with timestamp
+    timestamp_str = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    zip_filename = f"images_{timestamp_str}.zip"
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={zip_filename}"},
     )
