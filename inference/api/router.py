@@ -1,6 +1,7 @@
 import io
 import zipfile
 from datetime import UTC, datetime
+from typing import Annotated
 
 import anyio.to_thread
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
@@ -51,7 +52,9 @@ async def detect_url(request: DetectRequest) -> DetectResponse:
 
 
 @router.post("/detect/upload", response_model=DetectResponse)
-async def detect_upload(file: UploadFile = File()) -> DetectResponse:
+async def detect_upload(
+    file: Annotated[UploadFile, File()],
+) -> DetectResponse:
     """Detect screen photo from uploaded file."""
     try:
         entry = await stream_file_to_upload(file)
@@ -89,7 +92,9 @@ async def classify_image(request: ClassifyRequest) -> ClassifyResponse:
 async def package_images(request: PackageRequest) -> StreamingResponse:
     """Package images uploaded after the given timestamp into a zip file.
 
-    Returns a zip file containing all images created after the specified timestamp.
+    Returns a zip file with two folders:
+    - screen_photo/: screen capture images
+    - non_screen_photo/: non-screen images (normal_photo or unclassified)
     """
     from pydantic import TypeAdapter
 
@@ -120,11 +125,16 @@ async def package_images(request: PackageRequest) -> StreamingResponse:
             detail="No images found after the specified timestamp",
         )
 
-    # Create zip in memory
+    # Create zip in memory with two folders
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
         for entry in matching_entries:
-            zf.write(entry.path, entry.file_name)
+            # Classify into screen_photo or non_screen_photo folder
+            if entry.class_name == "screen_photo":
+                arcname = f"screen_photo/{entry.file_name}"
+            else:
+                arcname = f"non_screen_photo/{entry.file_name}"
+            zf.write(entry.path, arcname)
 
     zip_buffer.seek(0)
 

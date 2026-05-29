@@ -19,35 +19,46 @@ def client():
 
 @pytest.fixture
 def setup_test_images(tmp_path, monkeypatch):
-    """Create test images and mock the upload directory."""
+    """Create test images with different class names."""
     from pydantic import TypeAdapter
 
     from inference.image_index import ImageEntry
 
-    # Create temporary upload directory
+    # Create temporary upload directory with subdirectories
     test_upload_dir = tmp_path / "upload"
     test_upload_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create test images
+    screen_dir = test_upload_dir / "screen_photo"
+    screen_dir.mkdir(parents=True, exist_ok=True)
+    normal_dir = test_upload_dir / "normal_photo"
+    normal_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create test images in different directories
     image_files = []
     for i in range(3):
-        img_path = test_upload_dir / f"test_hash_{i}.jpg"
-        # Create a minimal valid JPEG file
+        if i < 2:
+            # First 2 are screen_photo
+            img_path = screen_dir / f"test_hash_{i}.jpg"
+        else:
+            # Last 1 is normal_photo
+            img_path = normal_dir / f"test_hash_{i}.jpg"
         img_path.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
         image_files.append(img_path)
 
-    # Create index with different timestamps
+    # Create index with different timestamps and class names
     now = datetime.now(UTC)
     ta = TypeAdapter(dict[str, ImageEntry])
 
-    index = {
-        f"test_hash_{i}": ImageEntry(
+    index = {}
+    for i in range(3):
+        class_name = "screen_photo" if i < 2 else "normal_photo"
+        entry = ImageEntry(
             file_name=f"test_hash_{i}.jpg",
             file_hash=f"test_hash_{i}",
-            created_at=now - timedelta(minutes=5 - i),  # 5, 4, 3 minutes ago
+            class_name=class_name,
+            created_at=now - timedelta(minutes=5 - i),
         )
-        for i in range(3)
-    }
+        index[f"test_hash_{i}"] = entry
 
     index_file = test_upload_dir / "index.json"
     index_file.write_bytes(ta.dump_json(index))
@@ -86,15 +97,16 @@ def test_package_images_success(client, setup_test_images):
     zip_content = io.BytesIO(response.content)
     with zipfile.ZipFile(zip_content, "r") as zf:
         file_list = zf.namelist()
-        assert len(file_list) == 1  # Only test_hash_2 should match
+        assert len(file_list) == 1
+        assert file_list[0] == "non_screen_photo/test_hash_2.jpg"
 
 
-def test_package_images_multiple(client, setup_test_images):
-    """Test packaging multiple images."""
+def test_package_images_with_folders(client, setup_test_images):
+    """Test that images are sorted into screen_photo and non_screen_photo folders."""
     test_data = setup_test_images
     now = test_data["now"]
 
-    # Request images created in the last 6 minutes (should get all 3)
+    # Request all images
     timestamp = (now - timedelta(minutes=6)).isoformat()
 
     response = client.post(
@@ -103,13 +115,21 @@ def test_package_images_multiple(client, setup_test_images):
     )
 
     assert response.status_code == 200
-    assert response.headers["content-type"] == "application/zip"
 
-    # Verify zip content
     zip_content = io.BytesIO(response.content)
     with zipfile.ZipFile(zip_content, "r") as zf:
         file_list = zf.namelist()
-        assert len(file_list) == 3  # All images should match
+
+        # Check screen_photo folder
+        screen_files = [f for f in file_list if f.startswith("screen_photo/")]
+        assert len(screen_files) == 2
+        assert "screen_photo/test_hash_0.jpg" in screen_files
+        assert "screen_photo/test_hash_1.jpg" in screen_files
+
+        # Check non_screen_photo folder
+        non_screen_files = [f for f in file_list if f.startswith("non_screen_photo/")]
+        assert len(non_screen_files) == 1
+        assert "non_screen_photo/test_hash_2.jpg" in non_screen_files
 
 
 def test_package_images_not_found(client, setup_test_images):
@@ -180,6 +200,9 @@ def test_package_images_preserves_filenames(client, setup_test_images):
     zip_content = io.BytesIO(response.content)
     with zipfile.ZipFile(zip_content, "r") as zf:
         file_list = zf.namelist()
-        # All test files should be present
+        # All test files should be present with folder prefixes
         for i in range(3):
-            assert f"test_hash_{i}.jpg" in file_list
+            if i < 2:
+                assert f"screen_photo/test_hash_{i}.jpg" in file_list
+            else:
+                assert f"non_screen_photo/test_hash_{i}.jpg" in file_list

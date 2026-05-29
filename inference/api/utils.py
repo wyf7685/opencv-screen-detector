@@ -69,9 +69,9 @@ async def stream_url_to_upload(url: str) -> ImageEntry:
             client.stream("GET", url) as resp,
         ):
             resp.raise_for_status()
-            aiter = resp.aiter_bytes(STREAM_CHUNK_SIZE)
+            chunk_iter = resp.aiter_bytes(STREAM_CHUNK_SIZE)
             first_chunk = b""
-            async for chunk in aiter:
+            async for chunk in chunk_iter:
                 first_chunk += chunk
                 if len(first_chunk) >= FLEEP_HEADER_SIZE:
                     break
@@ -80,7 +80,9 @@ async def stream_url_to_upload(url: str) -> ImageEntry:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Not an image",
                 )
-            file_hash, tmp_path = await _stream_to_temp(aiter, first_chunk, suffix)
+            file_hash, tmp_path = await _stream_to_temp(
+                chunk_iter, first_chunk, suffix
+            )
             return await image_index.add(file_hash, tmp_path)
     except httpx.HTTPStatusError as err:
         raise HTTPException(

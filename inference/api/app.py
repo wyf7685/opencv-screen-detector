@@ -1,4 +1,5 @@
 import contextlib
+from collections.abc import AsyncIterator
 
 import anyio
 from fastapi import FastAPI
@@ -10,7 +11,7 @@ from .router import router as api_router
 
 
 @contextlib.asynccontextmanager
-async def lifespan(_: object):
+async def lifespan(_: object) -> AsyncIterator[None]:
     get_predictor()
     async with anyio.create_task_group() as tg:
         tg.start_soon(run_cleanup_loop)
