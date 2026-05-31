@@ -7,7 +7,8 @@ import anyio.to_thread
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 
-from ..image_index import INDEX_FILE, ImageEntry, image_index
+from ..config import UPLOAD_DIR
+from ..image_index import image_index
 from .predictor import get_predictor
 from .schema import (
     ClassifyRequest,
@@ -39,6 +40,7 @@ async def detect_url(request: DetectRequest) -> DetectResponse:
     try:
         entry = await stream_url_to_upload(request.url)
         is_screen = await anyio.to_thread.run_sync(run_detect, entry.path)
+        await image_index.classify(entry.file_hash, is_screen)
     except HTTPException:
         raise
     except Exception as exc:
@@ -47,7 +49,6 @@ async def detect_url(request: DetectRequest) -> DetectResponse:
             detail=f"Detection failed: {exc!r}",
         ) from exc
     else:
-        await image_index.classify(entry.file_hash, is_screen)
         return DetectResponse(image_id=entry.file_hash, is_screen=is_screen)
 
 
@@ -59,6 +60,7 @@ async def detect_upload(
     try:
         entry = await stream_file_to_upload(file)
         is_screen = await anyio.to_thread.run_sync(run_detect, entry.path)
+        await image_index.classify(entry.file_hash, is_screen)
     except HTTPException:
         raise
     except Exception as exc:
@@ -67,7 +69,6 @@ async def detect_upload(
             detail=f"Detection failed: {exc!r}",
         ) from exc
     else:
-        await image_index.classify(entry.file_hash, is_screen)
         return DetectResponse(image_id=entry.file_hash, is_screen=is_screen)
 
 
@@ -92,55 +93,39 @@ async def classify_image(request: ClassifyRequest) -> ClassifyResponse:
 async def package_images(request: PackageRequest) -> StreamingResponse:
     """Package images uploaded after the given timestamp into a zip file.
 
-    Returns a zip file with two folders:
-    - screen_photo/: screen capture images
-    - non_screen_photo/: non-screen images (normal_photo or unclassified)
+    Returns a zip file containing:
+    - /screen_photo/*: screen capture images
+    - /normal_photo/*: non-screen images
     """
-    from pydantic import TypeAdapter
-
-    # Load index
-    ta = TypeAdapter(dict[str, ImageEntry])
-    if not INDEX_FILE.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No image index found",
-        )
-
-    index = ta.validate_json(INDEX_FILE.read_bytes())
-
     # Filter images after timestamp
-    after_time = request.after_timestamp
-    if after_time.tzinfo is None:
-        after_time = after_time.replace(tzinfo=UTC)
+    after_time = (
+        after_time.astimezone(UTC)
+        if (after_time := request.after_timestamp).tzinfo
+        else after_time.replace(tzinfo=UTC)
+    )
 
-    matching_entries = [
-        entry
-        for entry in index.values()
-        if entry.created_at > after_time and entry.path.exists()
-    ]
+    async with image_index.load_index() as index:
+        matching_entries = [
+            entry
+            for entry in index.values()
+            if entry.created_at > after_time and entry.path.exists()
+        ]
 
-    if not matching_entries:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No images found after the specified timestamp",
-        )
+        if not matching_entries:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No images found after the specified timestamp",
+            )
 
-    # Create zip in memory with two folders
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-        for entry in matching_entries:
-            # Classify into screen_photo or non_screen_photo folder
-            if entry.class_name == "screen_photo":
-                arcname = f"screen_photo/{entry.file_name}"
-            else:
-                arcname = f"non_screen_photo/{entry.file_name}"
-            zf.write(entry.path, arcname)
-
-    zip_buffer.seek(0)
+        # Create zip in memory with classified images sorted into folders
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            for entry in matching_entries:
+                zf.write(entry.path, entry.path.relative_to(UPLOAD_DIR))
+        zip_buffer.seek(0)
 
     # Generate filename with timestamp
-    timestamp_str = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-    zip_filename = f"images_{timestamp_str}.zip"
+    zip_filename = f"images_{datetime.now(UTC):%Y%m%d_%H%M%S}.zip"
 
     return StreamingResponse(
         zip_buffer,

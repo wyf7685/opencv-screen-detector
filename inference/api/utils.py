@@ -21,15 +21,18 @@ async def _stream_to_temp(
         tmp_path = Path(tmp.name)
 
     h = hashlib.sha256(first_chunk)
-    async with await anyio.Path(tmp_path).open("wb") as file:
-        await file.write(first_chunk)
-        async for chunk in stream:
-            h.update(chunk)
-            await file.write(chunk)
-        await file.flush()
-    file_hash = h.hexdigest()
-
-    return file_hash, tmp_path
+    try:
+        async with await anyio.Path(tmp_path).open("wb") as file:
+            await file.write(first_chunk)
+            async for chunk in stream:
+                h.update(chunk)
+                await file.write(chunk)
+            await file.flush()
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    else:
+        return h.hexdigest(), tmp_path
 
 
 CONTENT_TYPE_SUFFIX_MAP: dict[str, str] = {
@@ -80,9 +83,7 @@ async def stream_url_to_upload(url: str) -> ImageEntry:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="Not an image",
                 )
-            file_hash, tmp_path = await _stream_to_temp(
-                chunk_iter, first_chunk, suffix
-            )
+            file_hash, tmp_path = await _stream_to_temp(chunk_iter, first_chunk, suffix)
             return await image_index.add(file_hash, tmp_path)
     except httpx.HTTPStatusError as err:
         raise HTTPException(
