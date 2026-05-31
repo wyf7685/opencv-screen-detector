@@ -19,7 +19,6 @@ class ImageEntry(BaseModel):
     file_name: str
     file_hash: str
     class_name: str | None = None
-    trained: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     @property
@@ -63,15 +62,19 @@ class ImageIndex:
             await self._index_file.write_bytes(self._ta.dump_json(index))
 
     async def add(self, file_hash: str, path: Path) -> ImageEntry:
-        file_name = f"{file_hash}{path.suffix}"
-        new_path = UPLOAD_DIR / file_name
-        new_path.parent.mkdir(parents=True, exist_ok=True)
-        await anyio.Path(path).rename(new_path)
-
-        entry = ImageEntry(file_name=file_name, file_hash=file_hash)
         async with self.load_index() as index:
+            if file_hash in index:
+                path.unlink(missing_ok=True)
+                entry = index[file_hash]
+                entry.path.touch()
+                return entry
+
+            new_path = UPLOAD_DIR / f"{file_hash}{path.suffix}"
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            await anyio.Path(path).rename(new_path)
+            entry = ImageEntry(file_name=new_path.name, file_hash=file_hash)
             index[file_hash] = entry
-        return entry
+            return entry
 
     async def classify(self, file_hash: str, is_screen: bool) -> ImageEntry:
         class_name = "screen_photo" if is_screen else "normal_photo"
@@ -100,15 +103,3 @@ class ImageIndex:
 
 
 image_index = ImageIndex()
-
-
-def batch_mark_trained(*hashes: str) -> int:
-    ta = TypeAdapter(dict[str, ImageEntry])
-    index = ta.validate_json(INDEX_FILE.read_bytes())
-    marked = 0
-    for file_hash in hashes:
-        if entry := index.get(file_hash):
-            entry.trained = True
-            marked += 1
-    INDEX_FILE.write_bytes(ta.dump_json(index))
-    return marked
