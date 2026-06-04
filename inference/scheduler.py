@@ -1,17 +1,14 @@
 """Background scheduler for cleaning up expired upload files."""
 
-import logging
-
 import anyio
 
 from .image_index import image_index
-
-logger = logging.getLogger(__name__)
+from .log import logger
 
 
 async def run_cleanup_loop(interval: int = 60) -> None:
     """Run cleanup task periodically."""
-    logger.info("Starting cleanup loop with interval %d seconds", interval)
+    logger.info(f"Starting cleanup loop with interval {interval} seconds")
     while True:
         try:
             await image_index.clean_expired()

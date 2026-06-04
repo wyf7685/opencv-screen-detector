@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 import onnxruntime as ort
 
-from . import config
+from .config import settings
 from .fft_service import FFTService
 from .model_loader import ModelLoader
 from .preprocess import normalize_rgb, preprocess_image
@@ -58,16 +58,16 @@ def _run_stage(
 
 def _get_confidence_tier(confidence: float) -> dict:
     """Get confidence tier and recommended action."""
-    if confidence >= config.CONFIDENCE_HIGH:
+    if confidence >= settings.confidence_high:
         return {"confidence_tier": "high", "action": "accept"}
-    if confidence >= config.CONFIDENCE_MEDIUM:
+    if confidence >= settings.confidence_medium:
         return {"confidence_tier": "medium", "action": "review"}
     return {"confidence_tier": "low", "action": "ignore"}
 
 
 def _check_ood(probabilities: dict[str, float]) -> bool:
     """Return True if max probability is below the OOD threshold."""
-    return max(probabilities.values()) < config.OOD_THRESHOLD
+    return max(probabilities.values()) < settings.ood_threshold
 
 
 class ScreenDetectorPredictor:
@@ -78,8 +78,8 @@ class ScreenDetectorPredictor:
         stage1_path: str | None = None,
         stage2_path: str | None = None,
     ) -> None:
-        s1 = stage1_path or str(config.STAGE1_MODEL_PATH)
-        s2 = stage2_path or str(config.STAGE2_MODEL_PATH)
+        s1 = stage1_path or str(settings.stage1_model_path)
+        s2 = stage2_path or str(settings.stage2_model_path)
 
         self._models = ModelLoader(s1, s2)
         self._fft = FFTService()

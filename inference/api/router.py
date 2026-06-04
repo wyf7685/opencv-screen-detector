@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 
 from .. import config
 from ..image_index import image_index
-from .predictor import get_predictor, is_loaded, load_error
+from .predictor import get_predictor, load_error
 from .schema import (
     ClassifyRequest,
     ClassifyResponse,
@@ -27,9 +27,8 @@ router = APIRouter(prefix="/api")
 async def health_check() -> HealthResponse:
     predictor = get_predictor()
     error = load_error()
-    status_str = "healthy" if is_loaded() else ("degraded" if error else "starting")
     return HealthResponse(
-        status=status_str,
+        status="healthy" if predictor else ("degraded" if error else "starting"),
         stage1_model_loaded=predictor.stage1_loaded if predictor else False,
         stage2_model_loaded=predictor.stage2_loaded if predictor else False,
         load_error=error,
