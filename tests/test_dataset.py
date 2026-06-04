@@ -10,7 +10,7 @@ def test_dataset_loads_images(data_dir):
 
     data_map = {
         "natural": ["natural_photo"],
-        "screen_like": ["screen_like", "screenshot"],
+        "screenshot": ["screenshot"],
     }
 
     dataset = TwoInputDataset(data_map=data_map, data_dir=data_dir)
@@ -24,7 +24,7 @@ def test_dataset_returns_rgb_fft_label(data_dir):
 
     data_map = {
         "natural": ["natural_photo"],
-        "screen_like": ["screen_like"],
+        "screenshot": ["screenshot"],
     }
 
     dataset = TwoInputDataset(data_map=data_map, data_dir=data_dir)
@@ -62,7 +62,7 @@ def test_dataset_stage1_label_mapping(data_dir):
 
     data_map = {
         "natural": ["natural_photo"],
-        "screen_like": ["screen_like", "screenshot"],
+        "screenshot": ["screenshot"],
     }
 
     dataset = TwoInputDataset(data_map=data_map, data_dir=data_dir)

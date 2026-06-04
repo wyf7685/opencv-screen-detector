@@ -29,7 +29,7 @@ async def _stream_to_temp(
                 await file.write(chunk)
             await file.flush()
     except Exception:
-        tmp_path.unlink(missing_ok=True)
+        await anyio.Path(tmp_path).unlink(missing_ok=True)
         raise
     else:
         return h.hexdigest(), tmp_path
@@ -117,7 +117,7 @@ def run_detect(file_path: Path) -> bool:
     """Run two-stage detection.
 
     Flow:
-    1. Stage 1: natural vs screen_like (with TTA)
+    1. Stage 1: natural vs screenshot (with TTA)
     2. OOD detection: max_prob < 0.65 → unknown
     3. If natural → return directly
     4. Stage 2: screenshot vs screen_photo

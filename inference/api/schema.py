@@ -9,6 +9,7 @@ class HealthResponse(BaseModel):
     status: str
     stage1_model_loaded: bool
     stage2_model_loaded: bool
+    load_error: str | None = None
 
 
 class DetectRequest(BaseModel):
@@ -43,10 +44,3 @@ class PackageRequest(BaseModel):
     """Request model for packaging images after a timestamp."""
 
     after_timestamp: datetime
-
-
-class PackageResponse(BaseModel):
-    """Response model for image packaging."""
-
-    file_count: int
-    zip_filename: str

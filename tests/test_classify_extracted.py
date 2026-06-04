@@ -63,8 +63,8 @@ def test_classify_non_screen_photo(predictor, extracted_dir, output_dir):
                 dest = natural_dir / img_path.name
                 shutil.copy2(img_path, dest)
                 results["natural"] += 1
-            elif predicted_class in ("screen_like", "screen_photo"):
-                # For non_screen_photo, screen_like means it's a screenshot
+            elif predicted_class in ("screenshot", "screen_photo"):
+                # For non_screen_photo, screenshot means it's a screenshot
                 dest = screenshot_dir / img_path.name
                 shutil.copy2(img_path, dest)
                 results["screenshot"] += 1
@@ -77,7 +77,7 @@ def test_classify_non_screen_photo(predictor, extracted_dir, output_dir):
             print(f"Error processing {img_path.name}: {e}")
             results["error"] += 1
 
-    print(f"\nClassification results for non_screen_photo:")
+    print("\nClassification results for non_screen_photo:")
     print(f"  Natural: {results['natural']}")
     print(f"  Screenshot: {results['screenshot']}")
     print(f"  Unknown: {results['unknown']}")
@@ -87,7 +87,7 @@ def test_classify_non_screen_photo(predictor, extracted_dir, output_dir):
     assert results["natural"] + results["screenshot"] + results["unknown"] > 0
 
 
-def test_copy_screen_photo(predictor, extracted_dir, output_dir):
+def test_copy_screen_photo(predictor, extracted_dir, output_dir):  # noqa: ARG001
     """Copy screen_photo images directly to output."""
     screen_dir = extracted_dir / "screen_photo"
     if not screen_dir.exists():
@@ -122,7 +122,7 @@ def test_copy_screen_photo(predictor, extracted_dir, output_dir):
 def test_verify_classification(output_dir):
     """Verify that images were classified correctly."""
     # Count images in each directory
-    categories = ["natural_photo", "screenshot", "screen_photo", "screen_like"]
+    categories = ["natural_photo", "screenshot", "screen_photo"]
     counts = {}
 
     for category in categories:
@@ -137,7 +137,7 @@ def test_verify_classification(output_dir):
         else:
             counts[category] = 0
 
-    print(f"\nFinal image counts in data/input:")
+    print("\nFinal image counts in data/input:")
     for category, count in counts.items():
         print(f"  {category}: {count}")
 

@@ -41,7 +41,7 @@ class ScreenDetectorModel(nn.Module):
             pretrained=pretrained,
             num_classes=0,
         )
-        self.spatial_dim = cast(int, self.backbone.num_features)  # 1280
+        self.spatial_dim = cast("int", self.backbone.num_features)  # 1280
 
         # Frequency Branch (FFT)
         self.freq_branch = FrequencyBranch(out_features=256)

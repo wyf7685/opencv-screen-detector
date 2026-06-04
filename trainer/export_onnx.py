@@ -1,7 +1,7 @@
 """Export trained models to ONNX format.
 
 Exports two models:
-- Stage 1: natural vs screen_like
+- Stage 1: natural vs screenshot
 - Stage 2: screenshot vs screen_photo
 
 Both models have dual inputs (RGB + FFT) with dynamic batch axes (修正 #8).
@@ -121,9 +121,9 @@ def main() -> None:
     models_dir = config.PROJECT_ROOT / "inference" / "models"
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    # Export Stage 1: natural vs screen_like
+    # Export Stage 1: natural vs screenshot
     stage1_checkpoint = str(config.CHECKPOINT_DIR / "stage1_best.pth")
-    stage1_onnx = str(models_dir / "stage1_natural_vs_screenlike.onnx")
+    stage1_onnx = str(models_dir / "stage1_natural_vs_screenshot.onnx")
 
     if Path(stage1_checkpoint).exists():
         print("Exporting Stage 1 model...")
@@ -139,7 +139,7 @@ def main() -> None:
 
     # Export Stage 2: screenshot vs screen_photo
     stage2_checkpoint = str(config.CHECKPOINT_DIR / "stage2_best.pth")
-    stage2_onnx = str(models_dir / "stage2_screenlike_vs_screenphoto.onnx")
+    stage2_onnx = str(models_dir / "stage2_screenshot_vs_screenphoto.onnx")
 
     if Path(stage2_checkpoint).exists():
         print("Exporting Stage 2 model...")

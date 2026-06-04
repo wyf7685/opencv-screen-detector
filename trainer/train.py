@@ -1,7 +1,7 @@
 """Training module for screen detector V3.
 
 Two-stage training with Mixed Precision:
-- Stage 1: natural vs screen_like
+- Stage 1: natural vs screenshot
 - Stage 2: screenshot vs screen_photo
 """
 
@@ -195,7 +195,7 @@ def train_stage(
     # ==========================================
     print(f"\n[Stage B] Fine-tuning ({epochs_finetune} epochs)")
 
-    model.unfreeze_backbone(num_layers=2)
+    model.unfreeze_backbone(num_layers=6)
 
     optimizer = optim.AdamW(
         [
@@ -282,7 +282,7 @@ def main():
     config.CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
     config.LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Stage 1: natural vs screen_like
+    # Stage 1: natural vs screenshot
     _, _, metrics1 = train_stage(
         data_map=config.STAGE1_DATA_MAP,
         stage_name="stage1",

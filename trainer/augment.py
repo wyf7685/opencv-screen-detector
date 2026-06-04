@@ -1,4 +1,4 @@
-"""Data augmentation for screen detector V2 training."""
+"""Data augmentation for screen detector V3 training."""
 
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
@@ -70,30 +70,4 @@ def get_val_transforms():
     )
 
 
-def get_screen_photo_augmentation():
-    """Get augmentation specific to screen photos."""
-    return A.Compose(
-        [
-            A.Resize(config.IMAGE_SIZE, config.IMAGE_SIZE),
-            A.RandomResizedCrop(
-                size=(config.IMAGE_SIZE, config.IMAGE_SIZE),
-                scale=(0.8, 1.0),
-            ),
-            A.HorizontalFlip(p=0.5),
-            A.Rotate(limit=10, p=0.5),
-            A.GaussNoise(p=0.4),
-            A.ColorJitter(
-                brightness=0.3,
-                contrast=0.3,
-                saturation=0.2,
-                p=0.5,
-            ),
-            A.Perspective(scale=(0.05, 0.15), p=0.4),
-            A.MotionBlur(blur_limit=5, p=0.3),
-            A.Normalize(
-                mean=(0.485, 0.456, 0.406),
-                std=(0.229, 0.224, 0.225),
-            ),
-            ToTensorV2(),
-        ]
-    )
+

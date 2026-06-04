@@ -10,8 +10,6 @@ from pydantic import BaseModel, Field, TypeAdapter
 
 from . import config
 
-UPLOAD_DIR = config.UPLOAD_DIR
-INDEX_FILE = UPLOAD_DIR / "index.json"
 EXPIRATION_SECONDS = 60 * 10  # 10 mins
 
 
@@ -27,18 +25,22 @@ class ImageEntry(BaseModel):
 
     @property
     def path(self) -> Path:
+        upload_dir = config.settings.upload_dir
         if self.class_name is None:  # unclassified
-            return UPLOAD_DIR / self.file_name
-        return UPLOAD_DIR / self.class_name / self.file_name
+            return upload_dir / self.file_name
+        return upload_dir / self.class_name / self.file_name
 
-    def classify(self, class_name: str) -> None:
-        if not self.path.exists():
+    async def async_classify(self, class_name: str) -> None:
+        """Move file to class directory (non-blocking)."""
+        src = anyio.Path(self.path)
+        if not await src.exists():
             raise FileNotFoundError(f"Image file not found: {self.path}")
 
-        class_dir = UPLOAD_DIR / class_name
-        class_dir.mkdir(parents=True, exist_ok=True)
-        new_path = class_dir / self.file_name
-        self.path.rename(new_path)
+        upload_dir = config.settings.upload_dir
+        class_dir = anyio.Path(upload_dir / class_name)
+        await class_dir.mkdir(parents=True, exist_ok=True)
+        new_path = upload_dir / class_name / self.file_name
+        await src.rename(new_path)
 
         self.class_name = class_name
 
@@ -47,30 +49,34 @@ class ImageIndex:
     def __init__(self) -> None:
         self._ta = TypeAdapter(dict[str, ImageEntry])
         self._lock = anyio.Lock()
-        self._index_file = anyio.Path(INDEX_FILE)
+
+    def _get_index_file(self) -> anyio.Path:
+        return anyio.Path(config.settings.index_file)
 
     @contextlib.asynccontextmanager
     async def load_index(self) -> AsyncGenerator[dict[str, ImageEntry]]:
         async with self._lock:
-            if await self._index_file.exists():
-                index = self._ta.validate_json(await self._index_file.read_bytes())
+            index_file = self._get_index_file()
+            if await index_file.exists():
+                index = self._ta.validate_json(await index_file.read_bytes())
             else:
                 index = {}
 
             yield index
 
-            await self._index_file.write_bytes(self._ta.dump_json(index))
+            await index_file.write_bytes(self._ta.dump_json(index))
 
     async def add(self, file_hash: str, path: Path) -> ImageEntry:
         async with self.load_index() as index:
             if file_hash in index:
-                path.unlink(missing_ok=True)
+                await anyio.Path(path).unlink(missing_ok=True)
                 entry = index[file_hash]
-                entry.path.touch()
+                await anyio.Path(entry.path).touch()
                 return entry
 
-            new_path = UPLOAD_DIR / f"{file_hash}{path.suffix}"
-            new_path.parent.mkdir(parents=True, exist_ok=True)
+            upload_dir = config.settings.upload_dir
+            new_path = upload_dir / f"{file_hash}{path.suffix}"
+            await anyio.Path(new_path.parent).mkdir(parents=True, exist_ok=True)
             await anyio.Path(path).rename(new_path)
             entry = ImageEntry(file_name=new_path.name, file_hash=file_hash)
             index[file_hash] = entry
@@ -80,7 +86,7 @@ class ImageIndex:
         class_name = "screen_photo" if is_screen else "normal_photo"
         async with self.load_index() as index:
             if entry := index.get(file_hash):
-                entry.classify(class_name)
+                await entry.async_classify(class_name)
                 return entry
 
             raise ValueError(f"Image not found: {file_hash}")

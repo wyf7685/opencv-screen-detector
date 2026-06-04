@@ -18,10 +18,11 @@ def client():
 
 
 @pytest.fixture
-def setup_test_images(tmp_path, monkeypatch):
+def setup_test_images(tmp_path, monkeypatch):  # noqa: ARG001
     """Create test images with different class names."""
     from pydantic import TypeAdapter
 
+    from inference.config import configure
     from inference.image_index import ImageEntry
 
     # Create temporary upload directory with subdirectories
@@ -63,17 +64,18 @@ def setup_test_images(tmp_path, monkeypatch):
     index_file = test_upload_dir / "index.json"
     index_file.write_bytes(ta.dump_json(index))
 
-    # Monkey patch the module-level constants
-    monkeypatch.setattr("inference.image_index.UPLOAD_DIR", test_upload_dir)
-    monkeypatch.setattr("inference.image_index.INDEX_FILE", index_file)
-    monkeypatch.setattr("inference.api.router.INDEX_FILE", index_file)
+    # Use configure() to redirect paths for testing
+    configure(upload_dir=test_upload_dir, index_file=index_file)
 
-    return {
+    yield {
         "upload_dir": test_upload_dir,
         "index_file": index_file,
         "now": now,
         "image_files": image_files,
     }
+
+    # Reset to defaults after test
+    configure()
 
 
 def test_package_images_success(client, setup_test_images):
@@ -98,11 +100,11 @@ def test_package_images_success(client, setup_test_images):
     with zipfile.ZipFile(zip_content, "r") as zf:
         file_list = zf.namelist()
         assert len(file_list) == 1
-        assert file_list[0] == "non_screen_photo/test_hash_2.jpg"
+        assert file_list[0] == "normal_photo/test_hash_2.jpg"
 
 
 def test_package_images_with_folders(client, setup_test_images):
-    """Test that images are sorted into screen_photo and non_screen_photo folders."""
+    """Test that images are sorted into screen_photo and normal_photo folders."""
     test_data = setup_test_images
     now = test_data["now"]
 
@@ -126,10 +128,10 @@ def test_package_images_with_folders(client, setup_test_images):
         assert "screen_photo/test_hash_0.jpg" in screen_files
         assert "screen_photo/test_hash_1.jpg" in screen_files
 
-        # Check non_screen_photo folder
-        non_screen_files = [f for f in file_list if f.startswith("non_screen_photo/")]
+        # Check normal_photo folder
+        non_screen_files = [f for f in file_list if f.startswith("normal_photo/")]
         assert len(non_screen_files) == 1
-        assert "non_screen_photo/test_hash_2.jpg" in non_screen_files
+        assert "normal_photo/test_hash_2.jpg" in non_screen_files
 
 
 def test_package_images_not_found(client, setup_test_images):
@@ -205,4 +207,4 @@ def test_package_images_preserves_filenames(client, setup_test_images):
             if i < 2:
                 assert f"screen_photo/test_hash_{i}.jpg" in file_list
             else:
-                assert f"non_screen_photo/test_hash_{i}.jpg" in file_list
+                assert f"normal_photo/test_hash_{i}.jpg" in file_list

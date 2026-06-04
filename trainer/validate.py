@@ -24,7 +24,7 @@ def validate_model(
     model: nn.Module,
     val_loader: Iterable[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
     device: str = "cpu",
-    class_names: list[str] | None = None,
+    class_names: list[str] | None = None,  # noqa: ARG001
 ):
     """Validate model on validation set.
 

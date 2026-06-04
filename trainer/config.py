@@ -1,7 +1,7 @@
 """Configuration for screen detector V3 trainer.
 
 Two-stage CNN + FFT Branch architecture:
-- Stage 1: natural vs screen_like
+- Stage 1: natural vs screenshot
 - Stage 2: screenshot vs screen_photo
 """
 
@@ -14,14 +14,14 @@ TRAINER_ROOT = PROJECT_ROOT / "trainer"
 CHECKPOINT_DIR = TRAINER_ROOT / "checkpoints"
 LOG_DIR = TRAINER_ROOT / "logs"
 
-# Stage 1: natural vs screen_like
-CLASS_NAMES_STAGE1 = ["natural", "screen_like"]
+# Stage 1: natural vs screenshot
+CLASS_NAMES_STAGE1 = ["natural", "screenshot"]
 STAGE1_DATA_MAP = {
     "natural": ["natural_photo"],  # 递归扫描子目录
-    "screen_like": ["screen_like", "screenshot", "hard_negative"],
+    "screenshot": ["screenshot", "hard_negative"],
 }
 
-# Stage 2: screenshot vs screen_photo (仅用 screenshot，不含 screen_like)
+# Stage 2: screenshot vs screen_photo
 CLASS_NAMES_STAGE2 = ["screenshot", "screen_photo"]
 STAGE2_DATA_MAP = {
     "screenshot": ["screenshot"],
@@ -35,7 +35,7 @@ INPUT_CHANNELS = 3
 NUM_CLASSES = 2  # 每阶段都是二分类
 
 # Training
-BATCH_SIZE = 8
+BATCH_SIZE = 16
 NUM_WORKERS = 2
 LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-4

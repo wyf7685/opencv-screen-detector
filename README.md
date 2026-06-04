@@ -11,14 +11,14 @@ Image
    ↓
 Stage 1 CNN (EfficientNet-B0 + FFT Branch)
    ↓
-natural / screen_like?
+natural / screenshot?
    ↓ natural → 返回 "natural"
-   ↓ screen_like
+   ↓ screenshot
    ↓
 Stage 2 CNN (EfficientNet-B0 + FFT Branch)
    ↓
 screenshot / screen_photo?
-   ↓ → 返回 "screen_like" 或 "screen_photo"
+   ↓ → 返回 "screenshot" 或 "screen_photo"
 ```
 
 ### 标签体系
@@ -26,7 +26,7 @@ screenshot / screen_photo?
 | 标签 | 含义 | 包含内容 |
 |------|------|----------|
 | `natural` | 真实自然图像 | 风景、人像、室内、动物、食物、街景、天空、树木 |
-| `screen_like` | 屏幕内容 | 截图、PPT、IDE、UI、terminal、聊天记录、软件界面 |
+| `screenshot` | 屏幕内容 | 截图、PPT、IDE、UI、terminal、聊天记录、软件界面 |
 | `screen_photo` | 相机拍摄屏幕 | 手机拍摄的屏幕照片 |
 
 ### 置信度分级
@@ -36,7 +36,14 @@ screenshot / screen_photo?
 | >= 0.92 | 直接输出 (accept) |
 | 0.75 - 0.92 | 人工审核 (review) |
 | < 0.75 | 忽略 (ignore) |
-| < 0.65 | OOD 检测，返回 unknown |
+| < 0.50 | OOD 检测，返回 unknown |
+
+### 训练准确率
+
+| 阶段 | 任务 | 验证准确率 |
+|------|------|-----------|
+| Stage 1 | natural vs screenshot | **96.12%** |
+| Stage 2 | screenshot vs screen_photo | **93.99%** |
 
 ## 快速开始
 
@@ -76,50 +83,50 @@ curl -X POST http://localhost:8325/api/detect \
 opencv-screen-detector/
 ├── main.py                         # API 入口
 ├── pyproject.toml                  # 推理端依赖
-├── config/
-│   └── thresholds.json             # 阈值配置
+├── shared/                         # 共享模块
+│   └── fft_transform.py            # FFT 频谱变换 (训练/推理共享)
 ├── inference/                      # 推理系统
 │   ├── models/
-│   │   ├── stage1_natural_vs_screenlike.onnx
-│   │   └── stage2_screenlike_vs_screenphoto.onnx
-│   └── src/
-│       ├── config.py               # 推理配置
-│       ├── predictor.py            # 两阶段推理器 (TTA/OOD/缓存)
-│       ├── preprocess.py           # RGB 预处理
-│       ├── fft_transform.py        # FFT 频谱变换
-│       ├── unified_api.py          # FastAPI 服务
-│       ├── batch_detect.py         # 批量检测
-│       ├── image_index.py          # 图片索引
-│       └── scheduler.py            # 后台清理
+│   │   ├── stage1_natural_vs_screenshot.onnx
+│   │   └── stage2_screenshot_vs_screenphoto.onnx
+│   ├── config.py                   # 推理配置 (Settings dataclass)
+│   ├── predictor.py                # 两阶段推理器 (TTA/OOD)
+│   ├── model_loader.py             # ONNX 模型加载
+│   ├── fft_service.py              # FFT 缓存服务 (LRU)
+│   ├── preprocess.py               # RGB 预处理 (normalize_rgb)
+│   ├── api/
+│   │   ├── app.py                  # FastAPI 应用
+│   │   ├── router.py               # API 路由
+│   │   ├── predictor.py            # 预测器生命周期管理
+│   │   ├── schema.py               # Pydantic 模型
+│   │   └── utils.py                # 工具函数
+│   ├── batch_detect.py             # 批量检测
+│   ├── image_index.py              # 图片索引 (异步 I/O)
+│   └── scheduler.py                # 后台清理
 ├── trainer/                        # 训练系统
-│   ├── pyproject.toml              # 训练端依赖
-│   └── src/
-│       ├── config.py               # 训练配置
-│       ├── model.py                # 融合模型 (EfficientNet + FFT Branch)
-│       ├── fft_branch.py           # Frequency Branch (ResBlock)
-│       ├── dataset.py              # 双输入数据集
-│       ├── train.py                # 两阶段训练 (AMP)
-│       ├── validate.py             # 验证指标
-│       ├── augment.py              # 数据增强
-│       └── export_onnx.py          # ONNX 导出
+│   ├── config.py                   # 训练配置
+│   ├── model.py                    # 融合模型 (EfficientNet + FFT Branch)
+│   ├── fft_branch.py               # Frequency Branch (ResBlock)
+│   ├── dataset.py                  # 双输入数据集
+│   ├── train.py                    # 两阶段训练 (AMP)
+│   ├── validate.py                 # 验证指标
+│   ├── augment.py                  # 数据增强
+│   └── export_onnx.py              # ONNX 导出
 ├── tests/                          # 测试
 │   ├── conftest.py
-│   ├── test_accuracy.py
-│   ├── test_predictor.py
 │   ├── test_fft_transform.py
 │   ├── test_dataset.py
-│   └── test_api.py
+│   ├── test_package.py
+│   └── test_classify_extracted.py
 ├── data/
 │   ├── input/
-│   │   ├── natural_photo/          # 自然照片 (含子目录)
-│   │   ├── screen_like/            # 屏幕内容
-│   │   ├── screenshot/             # 截图
+│   │   ├── natural_photo/          # 自然照片
+│   │   ├── screenshot/             # 截图 + 屏幕内容
 │   │   ├── screen_photo/           # 拍屏照片
 │   │   └── hard_negative/          # 难例负样本
-│   ├── upload/                     # API 上传缓存
-│   └── image_index.json            # 图片索引
+│   └── upload/                     # API 上传缓存
 └── scripts/
-    └── fetch_natural_photos.py     # 数据爬取脚本
+    └── fetch_natural_photos.py     # Unsplash 数据爬取脚本
 ```
 
 ## API 文档
@@ -133,14 +140,8 @@ opencv-screen-detector/
 **响应**:
 ```json
 {
-  "image_id": "uuid",
-  "filename": "test.jpg",
-  "class_name": "screen_photo",
-  "confidence": 0.9759,
-  "probabilities": {"natural": 0.01, "screen_like": 0.01, "screen_photo": 0.98},
-  "stage": 2,
-  "confidence_tier": "high",
-  "action": "accept"
+  "image_id": "hash",
+  "is_screen": true
 }
 ```
 
@@ -155,19 +156,34 @@ URL 检测。
 
 ### GET /api/health
 
-健康检查。
+健康检查。返回模型加载状态和错误信息。
+
+### POST /api/package
+
+打包指定时间戳之后的图片为 ZIP 文件。
+
+### POST /api/classify
+
+更新图片分类。
 
 ## 训练指南
 
 ```bash
-cd trainer
-uv sync
+# 安装训练依赖
+uv sync --group train
 
 # 训练两个阶段
-uv run python -m src.train
+uv run python -m trainer train
 
 # 导出 ONNX 模型
-uv run python -m src.export_onnx
+uv run python -m trainer export
+```
+
+### 数据爬取
+
+```bash
+export UNSPLASH_ACCESS_KEY="your_key"
+uv run scripts/fetch_natural_photos.py
 ```
 
 ## 测试

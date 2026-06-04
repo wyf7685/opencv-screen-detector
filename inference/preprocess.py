@@ -1,113 +1,63 @@
-"""Image preprocessing for screen detector V2 inference."""
+"""Image preprocessing for screen detector V3 inference."""
 
 from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image
 
 from . import config
 
 
-def preprocess_image(image_path: Path) -> np.ndarray:
-    """Preprocess image for model inference.
+def normalize_rgb(
+    image: np.ndarray,
+    image_size: int | None = None,
+    mean: list[float] | None = None,
+    std: list[float] | None = None,
+) -> np.ndarray:
+    """Normalize a BGR or RGB numpy image to model input format (NCHW).
+
+    Core preprocessing pipeline: BGR→RGB → resize → normalize → NCHW.
 
     Args:
-        image_path: Path to image file
+        image: Input image as numpy array (H, W, C) in BGR or RGB format.
+            If 3-channel, assumed BGR and converted to RGB.
+        image_size: Target spatial size. Defaults to config.IMAGE_SIZE.
+        mean: Per-channel normalization mean. Defaults to config.MEAN.
+        std: Per-channel normalization std. Defaults to config.STD.
 
     Returns:
-        Preprocessed image as numpy array (1, C, H, W)
+        Preprocessed image as numpy array (1, C, H, W).
     """
-    # Load image
-    image = cv2.imread(image_path)
+    size = image_size if image_size is not None else config.IMAGE_SIZE
+    m = mean if mean is not None else config.MEAN
+    s = std if std is not None else config.STD
+
+    # Convert BGR to RGB if 3-channel
+    if image.ndim == 3 and image.shape[2] == 3:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    # Resize
+    image = cv2.resize(image, (size, size))
+
+    # Normalize to [0, 1] then apply ImageNet stats
+    image = image.astype(np.float32) / 255.0
+    image = (image - np.array(m, dtype=np.float32)) / np.array(s, dtype=np.float32)
+
+    # HWC → CHW → NCHW
+    image = np.transpose(image, (2, 0, 1))
+    return np.expand_dims(image, axis=0)
+
+
+def preprocess_image(image_path: Path) -> np.ndarray:
+    """Load image from disk and preprocess for model inference.
+
+    Args:
+        image_path: Path to image file.
+
+    Returns:
+        Preprocessed image as numpy array (1, C, H, W).
+    """
+    image = cv2.imread(str(image_path))
     if image is None:
         raise ValueError(f"Failed to load image: {image_path}")
-
-    # Convert BGR to RGB
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-    # Resize
-    image = cv2.resize(image, (config.IMAGE_SIZE, config.IMAGE_SIZE))
-
-    # Normalize to [0, 1]
-    image = image.astype(np.float32) / 255.0
-
-    # Apply ImageNet normalization
-    mean = np.array(config.MEAN, dtype=np.float32)
-    std = np.array(config.STD, dtype=np.float32)
-    image = (image - mean) / std
-
-    # Convert to NCHW format
-    image = np.transpose(image, (2, 0, 1))  # HWC -> CHW
-    return np.expand_dims(image, axis=0)  # Add batch dimension
-
-
-def preprocess_image_from_bytes(image_bytes: bytes) -> np.ndarray:
-    """Preprocess image from bytes.
-
-    Args:
-        image_bytes: Image data as bytes
-
-    Returns:
-        Preprocessed image as numpy array (1, C, H, W)
-    """
-    # Convert bytes to numpy array
-    nparr = np.frombuffer(image_bytes, np.uint8)
-
-    # Decode image
-    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    if image is None:
-        raise ValueError("Failed to decode image from bytes")
-
-    # Convert BGR to RGB
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-    # Resize
-    image = cv2.resize(image, (config.IMAGE_SIZE, config.IMAGE_SIZE))
-
-    # Normalize to [0, 1]
-    image = image.astype(np.float32) / 255.0
-
-    # Apply ImageNet normalization
-    mean = np.array(config.MEAN, dtype=np.float32)
-    std = np.array(config.STD, dtype=np.float32)
-    image = (image - mean) / std
-
-    # Convert to NCHW format
-    image = np.transpose(image, (2, 0, 1))  # HWC -> CHW
-    return np.expand_dims(image, axis=0)  # Add batch dimension
-
-
-def preprocess_pil_image(pil_image: Image.Image) -> np.ndarray:
-    """Preprocess PIL image.
-
-    Args:
-        pil_image: PIL Image object
-
-    Returns:
-        Preprocessed image as numpy array (1, C, H, W)
-    """
-    # Convert to RGB if needed
-    if pil_image.mode != "RGB":
-        pil_image = pil_image.convert("RGB")
-
-    # Resize
-    pil_image = pil_image.resize(
-        (config.IMAGE_SIZE, config.IMAGE_SIZE),
-        Image.Resampling.LANCZOS,
-    )
-
-    # Convert to numpy array
-    image = np.array(pil_image, dtype=np.float32)
-
-    # Normalize to [0, 1]
-    image = image / 255.0
-
-    # Apply ImageNet normalization
-    mean = np.array(config.MEAN, dtype=np.float32)
-    std = np.array(config.STD, dtype=np.float32)
-    image = (image - mean) / std
-
-    # Convert to NCHW format
-    image = np.transpose(image, (2, 0, 1))  # HWC -> CHW
-    return np.expand_dims(image, axis=0)  # Add batch dimension
+    return normalize_rgb(image)

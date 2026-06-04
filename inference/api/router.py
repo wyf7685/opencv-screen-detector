@@ -7,9 +7,9 @@ import anyio.to_thread
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 
-from ..config import UPLOAD_DIR
+from .. import config
 from ..image_index import image_index
-from .predictor import get_predictor
+from .predictor import get_predictor, is_loaded, load_error
 from .schema import (
     ClassifyRequest,
     ClassifyResponse,
@@ -26,10 +26,13 @@ router = APIRouter(prefix="/api")
 @router.get("/health", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     predictor = get_predictor()
+    error = load_error()
+    status_str = "healthy" if is_loaded() else ("degraded" if error else "starting")
     return HealthResponse(
-        status="healthy",
+        status=status_str,
         stage1_model_loaded=predictor.stage1_loaded if predictor else False,
         stage2_model_loaded=predictor.stage2_loaded if predictor else False,
+        load_error=error,
     )
 
 
@@ -121,7 +124,7 @@ async def package_images(request: PackageRequest) -> StreamingResponse:
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             for entry in matching_entries:
-                zf.write(entry.path, entry.path.relative_to(UPLOAD_DIR))
+                zf.write(entry.path, entry.path.relative_to(config.settings.upload_dir))
         zip_buffer.seek(0)
 
     # Generate filename with timestamp

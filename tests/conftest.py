@@ -55,16 +55,16 @@ def sample_screen_photo_image(data_dir):
 
 @pytest.fixture
 def sample_screenlike_image(data_dir):
-    """Return a path to a screen_like image."""
-    screenlike_dir = data_dir / "screen_like"
-    if not screenlike_dir.exists():
-        pytest.skip("screen_like directory not found")
+    """Return a path to a screenshot image."""
+    screenshot_dir = data_dir / "screenshot"
+    if not screenshot_dir.exists():
+        pytest.skip("screenshot directory not found")
 
-    for f in screenlike_dir.iterdir():
+    for f in screenshot_dir.iterdir():
         if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp", ".webp"}:
             return str(f)
 
-    pytest.skip("No screen_like images found")
+    pytest.skip("No screenshot images found")
 
 
 @pytest.fixture

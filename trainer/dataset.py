@@ -16,6 +16,8 @@ import torch
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset, random_split
 
+from shared.fft_transform import compute_fft_spectrum as _compute_fft_shared
+
 from . import config
 
 # Supported image extensions
@@ -32,31 +34,8 @@ def compute_fft_spectrum(image_np: np.ndarray, size: int = 224) -> np.ndarray:
     Returns:
         FFT 频谱图，形状 (1, H, W)
     """
-    # 转灰度
-    if len(image_np.shape) == 3:
-        gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-    else:
-        gray = image_np
-
-    # 先 resize 到目标尺寸，避免大图片导致内存不足
-    gray = cv2.resize(gray, (size, size))
-
-    # FFT
-    f = np.fft.fft2(gray.astype(np.float32))
-    fshift = np.fft.fftshift(f)
-
-    # 频谱图 (magnitude)
-    magnitude = np.log(np.abs(fshift) + 1)
-
-    # 归一化到 [0, 255]
-    magnitude = cv2.normalize(magnitude, None, 0, 255, cv2.NORM_MINMAX)  # pyright: ignore[reportCallIssue, reportArgumentType]
-
-    # 归一化到 [0, 1] 然后 ImageNet 灰度归一化
-    magnitude = magnitude.astype(np.float32) / 255.0
-    mean, std = 0.449, 0.226
-    magnitude = (magnitude - mean) / std
-
-    return magnitude.reshape(1, size, size)
+    # shared 版本返回 (1, 1, H, W)，squeeze 掉 batch 维度
+    return _compute_fft_shared(image_np, size, color_space="rgb").squeeze(0)
 
 
 class TwoInputDataset(Dataset):
