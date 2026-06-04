@@ -54,11 +54,11 @@ class Settings(BaseModel):
     # Model paths
     @functools.cached_property
     def stage1_model_path(self) -> Path:
-        return self.models_dir / "stage1_natural_vs_screenlike.onnx"
+        return self.models_dir / "stage1_natural_vs_screenshot.onnx"
 
     @functools.cached_property
     def stage2_model_path(self) -> Path:
-        return self.models_dir / "stage2_screenlike_vs_screenphoto.onnx"
+        return self.models_dir / "stage2_screenshot_vs_screenphoto.onnx"
 
     # Image processing
     image_size: int = 224
@@ -142,10 +142,10 @@ def configure(**kwargs: Any) -> Settings:
     if models_dir is not None:
         new_settings.models_dir = Path(models_dir)
         new_settings.stage1_model_path = (
-            new_settings.models_dir / "stage1_natural_vs_screenlike.onnx"
+            new_settings.models_dir / "stage1_natural_vs_screenshot.onnx"
         )
         new_settings.stage2_model_path = (
-            new_settings.models_dir / "stage2_screenlike_vs_screenphoto.onnx"
+            new_settings.models_dir / "stage2_screenshot_vs_screenphoto.onnx"
         )
 
     return settings

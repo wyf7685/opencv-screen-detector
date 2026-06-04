@@ -28,21 +28,9 @@ def create_session(model_path: Path) -> ort.InferenceSession | None:
 class ModelLoader:
     """Manages two-stage ONNX model sessions."""
 
-    def __init__(
-        self,
-        stage1_path: str | Path,
-        stage2_path: str | Path,
-    ) -> None:
-        self.stage1_path = Path(stage1_path)
-        self.stage2_path = Path(stage2_path)
-        self._stage1_session: ort.InferenceSession | None = None
-        self._stage2_session: ort.InferenceSession | None = None
-        self._load()
-
-    def _load(self) -> None:
-        """Load both stage models."""
-        self._stage1_session = create_session(self.stage1_path)
-        self._stage2_session = create_session(self.stage2_path)
+    def __init__(self, stage1_path: Path, stage2_path: Path) -> None:
+        self._stage1_session = create_session(stage1_path)
+        self._stage2_session = create_session(stage2_path)
 
     @property
     def stage1_loaded(self) -> bool:

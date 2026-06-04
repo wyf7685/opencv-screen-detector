@@ -1,5 +1,3 @@
-import io
-import zipfile
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -7,8 +5,8 @@ import anyio.to_thread
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 
-from .. import config
 from ..image_index import image_index
+from ..log import logger
 from .predictor import get_predictor, load_error
 from .schema import (
     ClassifyRequest,
@@ -18,7 +16,12 @@ from .schema import (
     HealthResponse,
     PackageRequest,
 )
-from .utils import run_detect, stream_file_to_upload, stream_url_to_upload
+from .utils import (
+    package_entries,
+    run_detect,
+    stream_file_to_upload,
+    stream_url_to_upload,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -38,6 +41,7 @@ async def health_check() -> HealthResponse:
 @router.post("/detect", response_model=DetectResponse)
 async def detect_url(request: DetectRequest) -> DetectResponse:
     """Detect screen photo from image URL."""
+    logger.info(f"Received detection request for URL: {request.url}")
 
     try:
         entry = await stream_url_to_upload(request.url)
@@ -46,6 +50,7 @@ async def detect_url(request: DetectRequest) -> DetectResponse:
     except HTTPException:
         raise
     except Exception as exc:
+        logger.exception(f"Detection failed for URL: {request.url!r}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Detection failed: {exc!r}",
@@ -59,6 +64,8 @@ async def detect_upload(
     file: Annotated[UploadFile, File()],
 ) -> DetectResponse:
     """Detect screen photo from uploaded file."""
+    logger.info(f"Received detection request for uploaded file: {file.filename!r}")
+
     try:
         entry = await stream_file_to_upload(file)
         is_screen = await anyio.to_thread.run_sync(run_detect, entry.path)
@@ -66,6 +73,7 @@ async def detect_upload(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.exception(f"Detection failed for uploaded file: {file.filename!r}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Detection failed: {exc!r}",
@@ -76,6 +84,8 @@ async def detect_upload(
 
 @router.post("/classify", response_model=ClassifyResponse)
 async def classify_image(request: ClassifyRequest) -> ClassifyResponse:
+    logger.info(f"Received classification request: {request!r}")
+
     try:
         entry = await image_index.classify(request.image_id, request.is_screen)
     except ValueError as exc:
@@ -106,6 +116,8 @@ async def package_images(request: PackageRequest) -> StreamingResponse:
         else after_time.replace(tzinfo=UTC)
     )
 
+    logger.info(f"Received package request for images after {after_time.isoformat()}")
+
     async with image_index.load_index() as index:
         matching_entries = [
             entry
@@ -120,14 +132,11 @@ async def package_images(request: PackageRequest) -> StreamingResponse:
             )
 
         # Create zip in memory with classified images sorted into folders
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            for entry in matching_entries:
-                zf.write(entry.path, entry.path.relative_to(config.settings.upload_dir))
-        zip_buffer.seek(0)
+        zip_buffer = await anyio.to_thread.run_sync(package_entries, matching_entries)
 
     # Generate filename with timestamp
     zip_filename = f"images_{datetime.now(UTC):%Y%m%d_%H%M%S}.zip"
+    logger.info(f"Packaged {len(matching_entries)} images into {zip_filename}")
 
     return StreamingResponse(
         zip_buffer,
