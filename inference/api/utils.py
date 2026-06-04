@@ -1,6 +1,8 @@
 import hashlib
 import tempfile
+import zipfile
 from collections.abc import AsyncIterable
+from io import BytesIO
 from pathlib import Path
 
 import anyio
@@ -8,6 +10,7 @@ import fleep
 import httpx
 from fastapi import HTTPException, UploadFile, status
 
+from ..config import settings
 from ..image_index import ImageEntry, image_index
 from .predictor import get_predictor
 
@@ -128,3 +131,12 @@ def run_detect(file_path: Path) -> bool:
 
     result = predictor.predict(file_path)
     return result["class"] == "screen_photo"
+
+
+def package_entries(entries: list[ImageEntry]) -> BytesIO:
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for entry in entries:
+            zf.write(entry.path, entry.path.relative_to(settings.upload_dir))
+    buf.seek(0)
+    return buf

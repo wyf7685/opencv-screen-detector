@@ -75,11 +75,11 @@ class ScreenDetectorPredictor:
 
     def __init__(
         self,
-        stage1_path: str | None = None,
-        stage2_path: str | None = None,
+        stage1_path: Path | None = None,
+        stage2_path: Path | None = None,
     ) -> None:
-        s1 = stage1_path or str(settings.stage1_model_path)
-        s2 = stage2_path or str(settings.stage2_model_path)
+        s1 = stage1_path or settings.stage1_model_path
+        s2 = stage2_path or settings.stage2_model_path
 
         self._models = ModelLoader(s1, s2)
         self._fft = FFTService()
