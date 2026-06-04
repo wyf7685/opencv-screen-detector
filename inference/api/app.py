@@ -1,25 +1,24 @@
 import contextlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 
 import anyio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from ..scheduler import run_cleanup_loop
-from .predictor import shutdown, startup
+from .predictor import ensure_predictor
 from .router import router as api_router
 
 
 @contextlib.asynccontextmanager
-async def lifespan(_: object) -> AsyncIterator[None]:
-    startup()
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(run_cleanup_loop)
-        try:
-            yield
-        finally:
-            tg.cancel_scope.cancel()
-            shutdown()
+async def lifespan(_: object) -> AsyncGenerator[None]:
+    with ensure_predictor():
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(run_cleanup_loop)
+            try:
+                yield
+            finally:
+                tg.cancel_scope.cancel()
 
 
 app = FastAPI(

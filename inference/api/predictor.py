@@ -3,19 +3,19 @@
 Provides lazy singleton with explicit startup/shutdown and failure logging.
 """
 
-import logging
+from collections.abc import Generator
+import contextlib
 
+from ..log import logger
 from ..predictor import ScreenDetectorPredictor
-
-logger = logging.getLogger(__name__)
 
 _predictor: ScreenDetectorPredictor | None = None
 _load_attempted: bool = False
 _load_error: str | None = None
 
 
-def startup() -> None:
-    """Eagerly load the predictor. Called during FastAPI lifespan."""
+@contextlib.contextmanager
+def ensure_predictor() -> Generator[None]:
     global _predictor, _load_attempted, _load_error
     _load_attempted = True
     try:
@@ -25,15 +25,12 @@ def startup() -> None:
         _load_error = str(exc)
         logger.exception("Failed to load predictor")
 
-
-def shutdown() -> None:
-    """Release predictor resources. Called during FastAPI lifespan shutdown."""
-    global _predictor
-    if _predictor is not None:
-        _predictor.stage1_session = None
-        _predictor.stage2_session = None
-        _predictor = None
-        logger.info("Predictor released")
+    try:
+        yield
+    finally:
+        if _predictor is not None:
+            _predictor = None
+            logger.info("Predictor released")
 
 
 def get_predictor() -> ScreenDetectorPredictor | None:
@@ -43,11 +40,6 @@ def get_predictor() -> ScreenDetectorPredictor | None:
     FastAPI lifespan to eagerly load and log any failures.
     """
     return _predictor
-
-
-def is_loaded() -> bool:
-    """Check if the predictor is loaded and ready."""
-    return _predictor is not None
 
 
 def load_error() -> str | None:

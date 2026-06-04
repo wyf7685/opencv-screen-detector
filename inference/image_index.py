@@ -8,7 +8,7 @@ from pathlib import Path
 import anyio
 from pydantic import BaseModel, Field, TypeAdapter
 
-from . import config
+from .config import settings
 
 EXPIRATION_SECONDS = 60 * 10  # 10 mins
 
@@ -25,7 +25,7 @@ class ImageEntry(BaseModel):
 
     @property
     def path(self) -> Path:
-        upload_dir = config.settings.upload_dir
+        upload_dir = settings.upload_dir
         if self.class_name is None:  # unclassified
             return upload_dir / self.file_name
         return upload_dir / self.class_name / self.file_name
@@ -36,7 +36,7 @@ class ImageEntry(BaseModel):
         if not await src.exists():
             raise FileNotFoundError(f"Image file not found: {self.path}")
 
-        upload_dir = config.settings.upload_dir
+        upload_dir = settings.upload_dir
         class_dir = anyio.Path(upload_dir / class_name)
         await class_dir.mkdir(parents=True, exist_ok=True)
         new_path = upload_dir / class_name / self.file_name
@@ -51,16 +51,16 @@ class ImageIndex:
         self._lock = anyio.Lock()
 
     def _get_index_file(self) -> anyio.Path:
-        return anyio.Path(config.settings.index_file)
+        return anyio.Path(settings.index_file)
 
     @contextlib.asynccontextmanager
     async def load_index(self) -> AsyncGenerator[dict[str, ImageEntry]]:
         async with self._lock:
             index_file = self._get_index_file()
-            if await index_file.exists():
-                index = self._ta.validate_json(await index_file.read_bytes())
-            else:
-                index = {}
+            index = {}
+            with contextlib.suppress(Exception):
+                if await index_file.exists():
+                    index = self._ta.validate_json(await index_file.read_bytes())
 
             yield index
 
@@ -74,7 +74,7 @@ class ImageIndex:
                 await anyio.Path(entry.path).touch()
                 return entry
 
-            upload_dir = config.settings.upload_dir
+            upload_dir = settings.upload_dir
             new_path = upload_dir / f"{file_hash}{path.suffix}"
             await anyio.Path(new_path.parent).mkdir(parents=True, exist_ok=True)
             await anyio.Path(path).rename(new_path)

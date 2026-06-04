@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from . import config
+from .config import settings
 
 
 def normalize_rgb(
@@ -28,9 +28,9 @@ def normalize_rgb(
     Returns:
         Preprocessed image as numpy array (1, C, H, W).
     """
-    size = image_size if image_size is not None else config.IMAGE_SIZE
-    m = mean if mean is not None else config.MEAN
-    s = std if std is not None else config.STD
+    size = image_size if image_size is not None else settings.image_size
+    m = mean if mean is not None else settings.mean
+    s = std if std is not None else settings.std
 
     # Convert BGR to RGB if 3-channel
     if image.ndim == 3 and image.shape[2] == 3:

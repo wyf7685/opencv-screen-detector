@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from . import config
+from .config import settings
 from .predictor import ScreenDetectorPredictor
 
 
@@ -91,8 +91,8 @@ def main() -> None:
     import sys
 
     # Default paths
-    input_dir = str(config.PROJECT_ROOT / "data" / "input")
-    output_path = str(config.OUTPUT_DIR / "result_v2.json")
+    input_dir = str(settings.project_root / "data" / "input")
+    output_path = str(settings.output_dir / "result_v2.json")
 
     # Parse arguments
     if len(sys.argv) > 1:
@@ -101,7 +101,7 @@ def main() -> None:
         output_path = sys.argv[2]
 
     # Create output directory
-    config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    settings.output_dir.mkdir(parents=True, exist_ok=True)
 
     # Run batch detection
     detect_batch(

@@ -5,13 +5,12 @@ from pathlib import Path
 import onnxruntime as ort
 
 
-def create_session(model_path: str | Path) -> ort.InferenceSession | None:
+def create_session(model_path: Path) -> ort.InferenceSession | None:
     """Load an ONNX model into an InferenceSession.
 
     Returns None if the model file does not exist.
     """
-    path = Path(model_path)
-    if not path.exists():
+    if not model_path.exists():
         return None
 
     sess_options = ort.SessionOptions()
@@ -23,7 +22,7 @@ def create_session(model_path: str | Path) -> ort.InferenceSession | None:
     if "CUDAExecutionProvider" in available_providers:
         providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
 
-    return ort.InferenceSession(str(path), sess_options, providers=providers)
+    return ort.InferenceSession(model_path, sess_options, providers=providers)
 
 
 class ModelLoader:
@@ -36,23 +35,33 @@ class ModelLoader:
     ) -> None:
         self.stage1_path = Path(stage1_path)
         self.stage2_path = Path(stage2_path)
-        self.stage1_session: ort.InferenceSession | None = None
-        self.stage2_session: ort.InferenceSession | None = None
+        self._stage1_session: ort.InferenceSession | None = None
+        self._stage2_session: ort.InferenceSession | None = None
         self._load()
 
     def _load(self) -> None:
         """Load both stage models."""
-        self.stage1_session = create_session(self.stage1_path)
-        self.stage2_session = create_session(self.stage2_path)
+        self._stage1_session = create_session(self.stage1_path)
+        self._stage2_session = create_session(self.stage2_path)
 
     @property
     def stage1_loaded(self) -> bool:
-        return self.stage1_session is not None
+        return self._stage1_session is not None
 
     @property
     def stage2_loaded(self) -> bool:
-        return self.stage2_session is not None
+        return self._stage2_session is not None
 
     @property
     def model_loaded(self) -> bool:
         return self.stage1_loaded and self.stage2_loaded
+
+    @property
+    def stage1_session(self) -> ort.InferenceSession:
+        assert self._stage1_session is not None, "Stage 1 model not loaded"
+        return self._stage1_session
+
+    @property
+    def stage2_session(self) -> ort.InferenceSession:
+        assert self._stage2_session is not None, "Stage 2 model not loaded"
+        return self._stage2_session
