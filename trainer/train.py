@@ -1,8 +1,13 @@
 """Training module for screen detector V3.
 
-Two-stage training with Mixed Precision:
-- Stage 1: natural vs screenshot
-- Stage 2: screenshot vs screen_photo
+Single-stage training with 3-class classification:
+- natural, screenshot, screen_photo
+
+Optimizations:
+- Weighted Loss for class imbalance
+- Focal Loss for hard examples
+- Oversampling with WeightedRandomSampler
+- Mixed Precision training
 """
 
 # pyright: reportPrivateImportUsage=none
@@ -18,6 +23,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from . import config
 from .augment import get_train_transforms, get_val_transforms
 from .dataset import create_data_loaders
+from .losses import create_criterion
 from .model import create_model, load_model, save_model
 from .validate import (
     plot_confusion_matrix,
@@ -30,19 +36,31 @@ from .validate import (
 def train_one_epoch(
     model: nn.Module,
     train_loader: Iterable[tuple[torch.Tensor, torch.Tensor, torch.Tensor]],
-    criterion,
-    optimizer,
+    criterion: nn.Module,
+    optimizer: optim.Optimizer,
     device: str = "cpu",
     use_amp: bool = True,
-):
-    """Train model for one epoch with Mixed Precision."""
+) -> tuple[float, float]:
+    """Train model for one epoch with Mixed Precision.
+
+    Args:
+        model: Model to train
+        train_loader: Training data loader
+        criterion: Loss function
+        optimizer: Optimizer
+        device: Device to use
+        use_amp: Whether to use Automatic Mixed Precision
+
+    Returns:
+        Tuple of (epoch_loss, epoch_acc)
+    """
     model.train()
 
     running_loss = 0.0
     correct = 0
     total = 0
 
-    # Mixed Precision (修正 #10)
+    # Mixed Precision
     amp_device = "cuda" if device == "cuda" else "cpu"
     scaler = torch.amp.GradScaler(amp_device, enabled=use_amp)
 
@@ -74,29 +92,36 @@ def train_one_epoch(
     return epoch_loss, epoch_acc
 
 
-def train_stage(
-    data_map: dict[str, list[str]],
-    stage_name: str,
-    class_names: list[str],
+def train_three_class(
+    data_map: dict[str, list[str]] | None = None,
+    class_names: list[str] | None = None,
+    class_weights: list[float] | None = None,
     data_dir: Path | None = None,
     epochs_head: int = config.EPOCHS_HEAD,
     epochs_finetune: int = config.EPOCHS_FINETUNE,
     batch_size: int = config.BATCH_SIZE,
     learning_rate: float = config.LEARNING_RATE,
     device: str | None = None,
-):
-    """Train a single stage of the two-stage CNN.
+    use_focal_loss: bool = config.USE_FOCAL_LOSS,
+    use_weighted_sampler: bool = config.USE_WEIGHTED_SAMPLER,
+) -> tuple[nn.Module, dict, dict]:
+    """Train a single-stage three-class classifier.
 
     Args:
         data_map: Data mapping {class_name: [source_dirs]}
-        stage_name: Stage identifier (e.g., "stage1", "stage2")
-        class_names: Class names for this stage
+        class_names: Class names for three-class classification
+        class_weights: Class weights for imbalanced dataset
         data_dir: Data directory
         epochs_head: Epochs for head training
         epochs_finetune: Epochs for fine-tuning
         batch_size: Batch size
         learning_rate: Learning rate
         device: Device to use
+        use_focal_loss: Whether to use Focal Loss
+        use_weighted_sampler: Whether to use WeightedRandomSampler
+
+    Returns:
+        Tuple of (model, history, final_metrics)
     """
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -104,9 +129,22 @@ def train_stage(
     if data_dir is None:
         data_dir = config.DATA_DIR
 
+    if data_map is None:
+        data_map = config.THREE_CLASS_DATA_MAP
+
+    if class_names is None:
+        class_names = config.CLASS_NAMES_THREE_CLASS
+
+    if class_weights is None:
+        class_weights = config.CLASS_WEIGHTS_THREE_CLASS
+
     print(f"\n{'=' * 60}")
-    print(f"Training {stage_name}: {' vs '.join(class_names)}")
+    print(f"Training Three-Class Classifier: {', '.join(class_names)}")
     print(f"{'=' * 60}")
+    print(f"Device: {device}")
+    print(f"Use Focal Loss: {use_focal_loss}")
+    print(f"Use Weighted Sampler: {use_weighted_sampler}")
+    print(f"Class Weights: {class_weights}")
 
     # Create data loaders
     train_loader, val_loader, full_dataset = create_data_loaders(
@@ -115,6 +153,7 @@ def train_stage(
         transform_train=get_train_transforms(),
         transform_val=get_val_transforms(),
         batch_size=batch_size,
+        use_weighted_sampler=use_weighted_sampler,
     )
 
     print(f"Dataset size: {len(full_dataset)} images")
@@ -122,7 +161,7 @@ def train_stage(
     val_size = len(full_dataset) - train_size
     print(f"Train/Val split: {train_size}/{val_size}")
 
-    # Create model
+    # Create model with 3 classes
     model = create_model(
         model_name=config.MODEL_NAME,
         num_classes=config.NUM_CLASSES,
@@ -131,8 +170,13 @@ def train_stage(
     )
     model = model.to(device)
 
-    # Loss function
-    criterion = nn.CrossEntropyLoss()
+    # Create loss criterion
+    criterion = create_criterion(
+        use_focal_loss=use_focal_loss,
+        class_weights=class_weights,
+        focal_gamma=config.FOCAL_LOSS_GAMMA,
+    )
+    print(f"Loss function: {type(criterion).__name__}")
 
     # Training history
     history = {
@@ -177,7 +221,7 @@ def train_stage(
             best_val_acc = val_acc
             save_model(
                 model,
-                str(config.CHECKPOINT_DIR / f"{stage_name}_best.pth"),
+                str(config.CHECKPOINT_DIR / "three_class_best.pth"),
                 epoch=epoch,
                 optimizer_state_dict=optimizer.state_dict(),
                 best_val_acc=best_val_acc,
@@ -230,7 +274,7 @@ def train_stage(
             best_val_acc = val_acc
             save_model(
                 model,
-                str(config.CHECKPOINT_DIR / f"{stage_name}_best.pth"),
+                str(config.CHECKPOINT_DIR / "three_class_best.pth"),
                 epoch=epochs_head + epoch,
                 optimizer_state_dict=optimizer.state_dict(),
                 best_val_acc=best_val_acc,
@@ -248,7 +292,7 @@ def train_stage(
     # ==========================================
 
     best_model = load_model(
-        str(config.CHECKPOINT_DIR / f"{stage_name}_best.pth"),
+        str(config.CHECKPOINT_DIR / "three_class_best.pth"),
         device=device,
     )
     best_model = best_model.to(device)
@@ -259,17 +303,17 @@ def train_stage(
     plot_confusion_matrix(
         final_metrics,
         class_names,
-        save_path=str(config.LOG_DIR / f"{stage_name}_confusion_matrix.png"),
+        save_path=str(config.LOG_DIR / "three_class_confusion_matrix.png"),
     )
 
     plot_training_history(
         history,
-        save_path=str(config.LOG_DIR / f"{stage_name}_training_history.png"),
+        save_path=str(config.LOG_DIR / "three_class_training_history.png"),
     )
 
     save_model(
         model,
-        str(config.CHECKPOINT_DIR / f"{stage_name}_final.pth"),
+        str(config.CHECKPOINT_DIR / "three_class_final.pth"),
         epoch=epochs_head + epochs_finetune - 1,
         best_val_acc=best_val_acc,
     )
@@ -278,26 +322,15 @@ def train_stage(
 
 
 def main():
-    """Main entry point for two-stage training."""
+    """Main entry point for three-class training."""
     config.CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
     config.LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Stage 1: natural vs screenshot
-    _, _, metrics1 = train_stage(
-        data_map=config.STAGE1_DATA_MAP,
-        stage_name="stage1",
-        class_names=config.CLASS_NAMES_STAGE1,
-    )
-
-    # Stage 2: screenshot vs screen_photo
-    _, _, metrics2 = train_stage(
-        data_map=config.STAGE2_DATA_MAP,
-        stage_name="stage2",
-        class_names=config.CLASS_NAMES_STAGE2,
-    )
+    # Train three-class classifier
+    _, _, metrics = train_three_class()
 
     print("\n" + "=" * 60)
     print("Training Complete!")
-    print(f"Stage 1 Accuracy: {metrics1['accuracy']:.4f}")
-    print(f"Stage 2 Accuracy: {metrics2['accuracy']:.4f}")
+    print(f"Three-Class Accuracy: {metrics['accuracy']:.4f}")
+    print(f"Best Validation Accuracy: {metrics['accuracy']:.4f}")
     print("=" * 60)

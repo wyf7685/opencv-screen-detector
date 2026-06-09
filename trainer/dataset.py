@@ -3,10 +3,12 @@
 Supports:
 - Two-input dataset (RGB + FFT)
 - Recursive subdirectory scanning (for natural_photo/ subfolders)
-- Data map configuration for two-stage training
+- Data map configuration for single-stage three-class training
+- WeightedRandomSampler for oversampling minority classes
 """
 
 # pyright: reportPrivateImportUsage=none
+from collections import Counter
 from pathlib import Path
 
 import albumentations as A
@@ -14,7 +16,13 @@ import cv2
 import numpy as np
 import torch
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset, Subset, random_split
+from torch.utils.data import (
+    DataLoader,
+    Dataset,
+    Subset,
+    WeightedRandomSampler,
+    random_split,
+)
 
 from shared.fft_transform import compute_fft_spectrum as _compute_fft_shared
 
@@ -141,8 +149,23 @@ def create_data_loaders(
     batch_size: int = config.BATCH_SIZE,
     num_workers: int = config.NUM_WORKERS,
     train_ratio: float = config.TRAIN_VAL_SPLIT,
+    use_weighted_sampler: bool = False,
 ):
-    """Create train and validation data loaders for two-input dataset."""
+    """Create train and validation data loaders for two-input dataset.
+
+    Args:
+        data_map: Data mapping {class_name: [source_dirs]}
+        data_dir: Data directory
+        transform_train: Training transforms
+        transform_val: Validation transforms
+        batch_size: Batch size
+        num_workers: Number of workers
+        train_ratio: Train/val split ratio
+        use_weighted_sampler: Whether to use WeightedRandomSampler for oversampling
+
+    Returns:
+        Tuple of (train_loader, val_loader, full_dataset)
+    """
 
     # Create full dataset
     full_dataset = TwoInputDataset(
@@ -167,11 +190,43 @@ def create_data_loaders(
     train_dataset = TransformSubset(train_dataset, transform_train)
     val_dataset = TransformSubset(val_dataset, transform_val)
 
+    # Create sampler for oversampling if requested
+    train_sampler = None
+    shuffle = True
+
+    if use_weighted_sampler:
+        # Get labels for training subset
+        if hasattr(train_dataset, "subset"):
+            train_indices = train_dataset.subset.indices
+        else:
+            train_indices = list(range(len(train_dataset)))
+        train_labels = [full_dataset.samples[i][1] for i in train_indices]
+
+        # Calculate class counts and weights
+        class_counts = Counter(train_labels)
+        total_samples = len(train_labels)
+        class_weights = {
+            cls: total_samples / count
+            for cls, count in class_counts.items()
+        }
+
+        # Assign weight to each sample
+        sample_weights = [class_weights[label] for label in train_labels]
+        sample_weights_tensor = torch.tensor(sample_weights, dtype=torch.double)
+
+        train_sampler = WeightedRandomSampler(
+            weights=sample_weights_tensor,
+            num_samples=len(sample_weights_tensor),
+            replacement=True,
+        )
+        shuffle = False  # Sampler handles shuffling
+
     # Create data loaders
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=shuffle,
+        sampler=train_sampler,
         num_workers=num_workers,
         pin_memory=True,
     )

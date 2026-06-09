@@ -1,8 +1,7 @@
 """Configuration for screen detector V3 trainer.
 
-Two-stage CNN + FFT Branch architecture:
-- Stage 1: natural vs screenshot
-- Stage 2: screenshot vs screen_photo
+Single-stage CNN + FFT Branch architecture for 3-class classification:
+- natural, screenshot, screen_photo
 """
 
 from pathlib import Path
@@ -14,25 +13,36 @@ TRAINER_ROOT = PROJECT_ROOT / "trainer"
 CHECKPOINT_DIR = TRAINER_ROOT / "checkpoints"
 LOG_DIR = TRAINER_ROOT / "logs"
 
-# Stage 1: natural vs screenshot
+# Legacy two-stage config (kept for backward compatibility)
 CLASS_NAMES_STAGE1 = ["natural", "screenshot"]
 STAGE1_DATA_MAP = {
-    "natural": ["natural_photo"],  # 递归扫描子目录
+    "natural": ["natural_photo"],
     "screenshot": ["screenshot", "hard_negative"],
 }
-
-# Stage 2: screenshot vs screen_photo
 CLASS_NAMES_STAGE2 = ["screenshot", "screen_photo"]
 STAGE2_DATA_MAP = {
     "screenshot": ["screenshot"],
     "screen_photo": ["screen_photo"],
 }
 
+# Three-class config (new single-stage approach)
+CLASS_NAMES_THREE_CLASS = ["natural", "screenshot", "screen_photo"]
+THREE_CLASS_DATA_MAP = {
+    "natural": ["natural_photo"],
+    "screenshot": ["screenshot", "hard_negative"],
+    "screen_photo": ["screen_photo"],
+}
+
+# Class weights for imbalanced dataset (total=1828)
+# natural=910, screenshot=729, screen_photo=189
+# weight = total / (3 * class_count)
+CLASS_WEIGHTS_THREE_CLASS = [0.67, 0.84, 3.22]
+
 # Model
 MODEL_NAME = "efficientnet_b0"
 IMAGE_SIZE = 224
 INPUT_CHANNELS = 3
-NUM_CLASSES = 2  # 每阶段都是二分类
+NUM_CLASSES = 3  # Three-class classification
 
 # Training
 BATCH_SIZE = 16
@@ -40,9 +50,16 @@ NUM_WORKERS = 2
 LEARNING_RATE = 1e-3
 WEIGHT_DECAY = 1e-4
 EPOCHS_HEAD = 10
-EPOCHS_FINETUNE = 30
+EPOCHS_FINETUNE = 40  # Increased for better convergence
 TRAIN_VAL_SPLIT = 0.8
 RANDOM_SEED = 42
+
+# Focal Loss
+FOCAL_LOSS_GAMMA = 2.0
+USE_FOCAL_LOSS = True
+
+# Oversampling
+USE_WEIGHTED_SAMPLER = True
 
 # Augmentation
 JPEG_QUALITY_RANGE = (50, 95)
