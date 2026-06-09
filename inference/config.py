@@ -129,23 +129,46 @@ def configure(**kwargs: Any) -> Settings:
     upload_dir = kwargs.pop("upload_dir", None)
     index_file = kwargs.pop("index_file", None)
     models_dir = kwargs.pop("models_dir", None)
+
+    # Create new settings with provided kwargs
     new_settings = Settings.model_validate({**settings.model_dump(), **kwargs})
 
-    for key in Settings.model_fields:
-        setattr(settings, key, getattr(new_settings, key))
-
+    # Update cached properties if provided
     if upload_dir is not None:
-        new_settings.upload_dir = Path(upload_dir)
-        new_settings.index_file = new_settings.upload_dir / "index.json"
-    if index_file is not None:
-        new_settings.index_file = Path(index_file)
+        # Clear cached_property cache and set new value
+        if "upload_dir" in settings.__dict__:
+            del settings.__dict__["upload_dir"]
+        settings.__dict__["upload_dir"] = Path(upload_dir)
+
+        if "index_file" in settings.__dict__:
+            del settings.__dict__["index_file"]
+        settings.__dict__["index_file"] = Path(upload_dir) / "index.json"
+    elif index_file is not None:
+        if "index_file" in settings.__dict__:
+            del settings.__dict__["index_file"]
+        settings.__dict__["index_file"] = Path(index_file)
+
     if models_dir is not None:
-        new_settings.models_dir = Path(models_dir)
-        new_settings.stage1_model_path = (
-            new_settings.models_dir / "stage1_natural_vs_screenshot.onnx"
+        if "models_dir" in settings.__dict__:
+            del settings.__dict__["models_dir"]
+        settings.__dict__["models_dir"] = Path(models_dir)
+
+        if "stage1_model_path" in settings.__dict__:
+            del settings.__dict__["stage1_model_path"]
+        settings.__dict__["stage1_model_path"] = (
+            Path(models_dir) / "stage1_natural_vs_screenshot.onnx"
         )
-        new_settings.stage2_model_path = (
-            new_settings.models_dir / "stage2_screenshot_vs_screenphoto.onnx"
+
+        if "stage2_model_path" in settings.__dict__:
+            del settings.__dict__["stage2_model_path"]
+        settings.__dict__["stage2_model_path"] = (
+            Path(models_dir) / "stage2_screenshot_vs_screenphoto.onnx"
         )
+
+    # Update regular fields
+    for key in Settings.model_fields:
+        if key not in ("upload_dir", "index_file", "models_dir",
+                       "stage1_model_path", "stage2_model_path"):
+            setattr(settings, key, getattr(new_settings, key))
 
     return settings

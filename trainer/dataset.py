@@ -52,6 +52,7 @@ class TwoInputDataset(Dataset):
     支持:
     - data_map 配置，从多个目录加载并映射到统一标签
     - rglob("*") 递归扫描子目录
+    - hard_negative 目录加载（误判图片增强）
     """
 
     def __init__(
@@ -60,14 +61,19 @@ class TwoInputDataset(Dataset):
         data_dir: Path,
         transform=None,
         image_size: int = config.IMAGE_SIZE,
+        load_hard_negatives: bool = True,
     ) -> None:
         self.data_dir = data_dir
         self.transform = transform
         self.image_size = image_size
 
         self.samples: list[tuple[str, int]] = []  # (image_path, label_idx)
+        self.hard_negative_indices: list[int] = []  # hard_negative 样本的索引
 
         self._load_samples(data_map)
+
+        if load_hard_negatives:
+            self._load_hard_negatives()
 
     def _load_samples(self, data_map: dict[str, list[str]]) -> None:
         """Load all image paths and labels from data map."""
@@ -82,6 +88,48 @@ class TwoInputDataset(Dataset):
                     if img_path.suffix.lower() not in IMAGE_EXTENSIONS:
                         continue
                     self.samples.append((str(img_path), class_idx))
+
+    def _load_hard_negatives(self) -> None:
+        """Load hard negative samples from misclassified images.
+
+        Hard negative 目录结构:
+        hard_negative/
+        ├── screen_photo_to_screenshot/  # 真实是 screen_photo，被误判为 screenshot
+        ├── screenshot_to_screen_photo/  # 真实是 screenshot，被误判为 screen_photo
+        ├── natural_to_screenshot/       # 真实是 natural，被误判为 screenshot
+        └── ...
+
+        对于 screen_photo_to_screenshot 目录中的图片：
+        - 真实标签是 screen_photo (class_idx=2)
+        - 但模型容易误判为 screenshot (class_idx=1)
+        - 这些是最重要的 hard negative
+        """
+        hard_negative_dir = config.HARD_NEGATIVE_DIR
+        if not hard_negative_dir.exists():
+            return
+
+        # 映射误判目录到真实标签
+        misclass_to_true_label = {
+            "screen_photo_to_screenshot": 2,  # 真实是 screen_photo
+            "screen_photo_to_natural": 2,     # 真实是 screen_photo
+            "screenshot_to_screen_photo": 1,  # 真实是 screenshot
+            "screenshot_to_natural": 1,       # 真实是 screenshot
+            "natural_to_screenshot": 0,       # 真实是 natural
+            "natural_to_screen_photo": 0,     # 真实是 natural
+        }
+
+        for misclass_dir, true_label in misclass_to_true_label.items():
+            dir_path = hard_negative_dir / misclass_dir
+            if not dir_path.exists():
+                continue
+
+            for img_path in dir_path.rglob("*"):
+                if img_path.suffix.lower() not in IMAGE_EXTENSIONS:
+                    continue
+
+                idx = len(self.samples)
+                self.samples.append((str(img_path), true_label))
+                self.hard_negative_indices.append(idx)
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -150,6 +198,7 @@ def create_data_loaders(
     num_workers: int = config.NUM_WORKERS,
     train_ratio: float = config.TRAIN_VAL_SPLIT,
     use_weighted_sampler: bool = False,
+    hard_negative_weight: float = config.HARD_NEGATIVE_WEIGHT,
 ):
     """Create train and validation data loaders for two-input dataset.
 
@@ -162,17 +211,22 @@ def create_data_loaders(
         num_workers: Number of workers
         train_ratio: Train/val split ratio
         use_weighted_sampler: Whether to use WeightedRandomSampler for oversampling
+        hard_negative_weight: Weight multiplier for hard negative samples
 
     Returns:
         Tuple of (train_loader, val_loader, full_dataset)
     """
 
-    # Create full dataset
+    # Create full dataset (with hard negatives)
     full_dataset = TwoInputDataset(
         data_map=data_map,
         data_dir=data_dir,
         transform=None,
+        load_hard_negatives=True,
     )
+
+    print(f"数据集大小: {len(full_dataset)} 张图片")
+    print(f"  其中 hard_negative: {len(full_dataset.hard_negative_indices)} 张")
 
     # Split dataset
     total_size = len(full_dataset)
@@ -211,7 +265,17 @@ def create_data_loaders(
         }
 
         # Assign weight to each sample
-        sample_weights = [class_weights[label] for label in train_labels]
+        # Hard negative samples get extra weight
+        sample_weights = []
+        hard_negative_set = set(full_dataset.hard_negative_indices)
+
+        for i, label in enumerate(train_labels):
+            weight = class_weights[label]
+            # 如果是 hard_negative 样本，增加权重
+            if train_indices[i] in hard_negative_set:
+                weight *= hard_negative_weight
+            sample_weights.append(weight)
+
         sample_weights_tensor = torch.tensor(sample_weights, dtype=torch.double)
 
         train_sampler = WeightedRandomSampler(
@@ -220,6 +284,12 @@ def create_data_loaders(
             replacement=True,
         )
         shuffle = False  # Sampler handles shuffling
+
+        # 统计
+        hard_neg_in_train = sum(1 for i in train_indices if i in hard_negative_set)
+        print(f"训练集大小: {train_size} 张")
+        print(f"  其中 hard_negative: {hard_neg_in_train} 张")
+        print(f"  Hard negative 权重: {hard_negative_weight}x")
 
     # Create data loaders
     train_loader = DataLoader(

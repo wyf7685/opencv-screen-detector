@@ -61,6 +61,10 @@ USE_FOCAL_LOSS = True
 # Oversampling
 USE_WEIGHTED_SAMPLER = True
 
+# Hard Negative Mining
+HARD_NEGATIVE_WEIGHT = 5  # Hard negative 重复采样权重
+HARD_NEGATIVE_DIR = DATA_DIR / "hard_negative"
+
 # Augmentation
 JPEG_QUALITY_RANGE = (50, 95)
 BLUR_SIGMA_RANGE = (0.5, 2.0)

@@ -4,6 +4,7 @@ from typing import Annotated
 import anyio.to_thread
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
+from starlette.background import BackgroundTask
 
 from ..image_index import image_index
 from ..log import logger
@@ -17,7 +18,10 @@ from .schema import (
     PackageRequest,
 )
 from .utils import (
+    cleanup_temp_file,
+    iter_file,
     package_entries,
+    package_entries_to_temp_file,
     run_detect,
     stream_file_to_upload,
     stream_url_to_upload,
@@ -105,6 +109,12 @@ async def classify_image(request: ClassifyRequest) -> ClassifyResponse:
 async def package_images(request: PackageRequest) -> StreamingResponse:
     """Package images uploaded after the given timestamp into a zip file.
 
+    Optimized for large exports:
+    - Uses temporary file instead of BytesIO (low memory usage)
+    - Uses ZIP_STORED or low compression level (fast, low CPU)
+    - Streams ZIP in 1MB chunks
+    - Auto-cleans temp file after download
+
     Returns a zip file containing:
     - /screen_photo/*: screen capture images
     - /normal_photo/*: non-screen images
@@ -131,15 +141,23 @@ async def package_images(request: PackageRequest) -> StreamingResponse:
                 detail="No images found after the specified timestamp",
             )
 
-        # Create zip in memory with classified images sorted into folders
-        zip_buffer = await anyio.to_thread.run_sync(package_entries, matching_entries)
+        logger.info(f"Found {len(matching_entries)} images to package")
+
+        # Create temp ZIP file on disk (low memory usage)
+        zip_path = await anyio.to_thread.run_sync(
+            package_entries_to_temp_file,
+            matching_entries,
+            1,  # compresslevel=1 for fast compression
+        )
 
     # Generate filename with timestamp
     zip_filename = f"images_{datetime.now(UTC):%Y%m%d_%H%M%S}.zip"
     logger.info(f"Packaged {len(matching_entries)} images into {zip_filename}")
 
+    # Stream ZIP file with auto-cleanup
     return StreamingResponse(
-        zip_buffer,
+        iter_file(zip_path),
         media_type="application/zip",
         headers={"Content-Disposition": f"attachment; filename={zip_filename}"},
+        background=BackgroundTask(cleanup_temp_file, zip_path),
     )
