@@ -1,6 +1,7 @@
 """Tests for image packaging API endpoint."""
 
 import io
+import sqlite3
 import zipfile
 from datetime import UTC, datetime, timedelta
 
@@ -20,14 +21,13 @@ def client():
 @pytest.fixture
 def setup_test_images(tmp_path, monkeypatch):  # noqa: ARG001
     """Create test images with different class names."""
-    from pydantic import TypeAdapter
-
     from inference.config import configure
-    from inference.image_index import ImageEntry
+    from inference.image_index import TABLE_SCHEMA
 
     # Create temporary upload directory with subdirectories
     test_upload_dir = tmp_path / "upload"
     test_upload_dir.mkdir(parents=True, exist_ok=True)
+    index_db = test_upload_dir / "index.sqlite3"
 
     screen_dir = test_upload_dir / "screen_photo"
     screen_dir.mkdir(parents=True, exist_ok=True)
@@ -48,28 +48,23 @@ def setup_test_images(tmp_path, monkeypatch):  # noqa: ARG001
 
     # Create index with different timestamps and class names
     now = datetime.now(UTC)
-    ta = TypeAdapter(dict[str, ImageEntry])
-
-    index = {}
+    conn = sqlite3.connect(index_db)
+    conn.execute(TABLE_SCHEMA)
     for i in range(3):
         class_name = "screen_photo" if i < 2 else "normal_photo"
-        entry = ImageEntry(
-            file_name=f"test_hash_{i}.jpg",
-            file_hash=f"test_hash_{i}",
-            class_name=class_name,
-            created_at=now - timedelta(minutes=5 - i),
+        created_at = (now - timedelta(minutes=5 - i)).timestamp()
+        conn.execute(
+            "INSERT INTO images (file_hash, file_name, class_name, created_at) VALUES (?, ?, ?, ?)",
+            (f"test_hash_{i}", f"test_hash_{i}.jpg", class_name, created_at),
         )
-        index[f"test_hash_{i}"] = entry
-
-    index_file = test_upload_dir / "index.json"
-    index_file.write_bytes(ta.dump_json(index))
+    conn.commit()
+    conn.close()
 
     # Use configure() to redirect paths for testing
-    configure(upload_dir=test_upload_dir, index_file=index_file)
+    configure(upload_dir=test_upload_dir, index_db=index_db)
 
     yield {
         "upload_dir": test_upload_dir,
-        "index_file": index_file,
         "now": now,
         "image_files": image_files,
     }
@@ -212,9 +207,7 @@ def test_package_images_preserves_filenames(client, setup_test_images):
 
 def test_package_temp_file_cleanup(client, setup_test_images):
     """Test that temporary ZIP files are cleaned up after download."""
-    from pathlib import Path
-
-    from inference.api.utils import PACKAGE_TEMP_DIR
+    # from inference.api.utils import PACKAGE_TEMP_DIR
 
     test_data = setup_test_images
     now = test_data["now"]
@@ -222,7 +215,7 @@ def test_package_temp_file_cleanup(client, setup_test_images):
     timestamp = (now - timedelta(minutes=6)).isoformat()
 
     # Count temp files before
-    temp_files_before = set(PACKAGE_TEMP_DIR.glob("*.zip")) if PACKAGE_TEMP_DIR.exists() else set()
+    # temp_files_before = set(PACKAGE_TEMP_DIR.glob("*.zip")) if PACKAGE_TEMP_DIR.exists() else set()
 
     response = client.post(
         "/api/package",
@@ -234,7 +227,7 @@ def test_package_temp_file_cleanup(client, setup_test_images):
     # After response, temp files should be cleaned up
     # Note: In test environment, cleanup happens via BackgroundTask
     # which may not execute in sync test client
-    temp_files_after = set(PACKAGE_TEMP_DIR.glob("*.zip")) if PACKAGE_TEMP_DIR.exists() else set()
+    # temp_files_after = set(PACKAGE_TEMP_DIR.glob("*.zip")) if PACKAGE_TEMP_DIR.exists() else set()
 
     # The temp file should exist during download but be scheduled for cleanup
     # In sync test client, BackgroundTask may not run, so we just verify the response works
@@ -295,7 +288,6 @@ def test_package_size_limit_exceeded(client, setup_test_images, monkeypatch):
 
 def test_package_uses_temp_file_not_bytesio(client, setup_test_images):
     """Test that the optimized version uses temp files instead of BytesIO."""
-    import tempfile
     from unittest.mock import patch
 
     test_data = setup_test_images
@@ -313,7 +305,7 @@ def test_package_uses_temp_file_not_bytesio(client, setup_test_images):
         # The actual call will fail because we mocked the temp file,
         # but we can verify the optimization is in place
         try:
-            response = client.post(
+            client.post(
                 "/api/package",
                 json={"after_timestamp": timestamp},
             )
