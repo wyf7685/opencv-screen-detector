@@ -1,8 +1,8 @@
 import hashlib
 import tempfile
+import uuid
 import zipfile
 from collections.abc import AsyncIterable, Generator
-from io import BytesIO
 from pathlib import Path
 
 import anyio
@@ -18,7 +18,7 @@ from .predictor import get_predictor
 MAX_FILES = 10000
 MAX_EXPORT_SIZE = 20 * 1024**3  # 20GB
 CHUNK_SIZE = 1024 * 1024  # 1MB
-PACKAGE_TEMP_DIR = Path("/tmp/package_exports")
+PACKAGE_TEMP_DIR = settings.data_dir / "temp_packages"
 
 
 async def _stream_to_temp(
@@ -139,21 +139,6 @@ def run_detect(file_path: Path) -> bool:
     return result["class"] == "screen_photo"
 
 
-def package_entries(entries: list[ImageEntry]) -> BytesIO:
-    """Legacy: Package entries into a BytesIO buffer (for small exports)."""
-    buf = BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for entry in entries:
-            zf.write(entry.path, entry.path.relative_to(settings.upload_dir))
-    buf.seek(0)
-    return buf
-
-
-def ensure_package_temp_dir() -> None:
-    """Ensure the package temp directory exists."""
-    PACKAGE_TEMP_DIR.mkdir(parents=True, exist_ok=True)
-
-
 def package_entries_to_temp_file(
     entries: list[ImageEntry],
     compress_level: int = 1,
@@ -173,31 +158,22 @@ def package_entries_to_temp_file(
     Raises:
         HTTPException: If export exceeds size or file limits.
     """
-    ensure_package_temp_dir()
-
     # Check limits
     if len(entries) > MAX_FILES:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Export exceeds maximum file limit ({MAX_FILES} files)",
         )
 
     # Calculate total size
-    total_size = sum(entry.path.stat().st_size for entry in entries if entry.path.exists())
+    total_size = sum(
+        entry.path.stat().st_size for entry in entries if entry.path.exists()
+    )
     if total_size > MAX_EXPORT_SIZE:
         raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail=f"Export size exceeds limit ({MAX_EXPORT_SIZE // (1024**3)}GB)",
         )
-
-    # Create temp file
-    tmp_zip = tempfile.NamedTemporaryFile(
-        suffix=".zip",
-        dir=str(PACKAGE_TEMP_DIR),
-        delete=False,
-    )
-    tmp_path = Path(tmp_zip.name)
-    tmp_zip.close()
 
     # Choose compression
     if compress_level == 0:
@@ -208,15 +184,21 @@ def package_entries_to_temp_file(
         actual_level = compress_level
 
     # Write ZIP to disk
-    with zipfile.ZipFile(
-        tmp_path,
-        "w",
-        compression=compression,
-        compresslevel=actual_level,
-    ) as zf:
-        for entry in entries:
-            if entry.path.exists():
-                zf.write(entry.path, entry.path.relative_to(settings.upload_dir))
+    tmp_path = PACKAGE_TEMP_DIR / f"{uuid.uuid4().hex}.zip"
+    tmp_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with zipfile.ZipFile(
+            tmp_path,
+            "w",
+            compression=compression,
+            compresslevel=actual_level,
+        ) as zf:
+            for entry in entries:
+                if entry.path.exists():
+                    zf.write(entry.path, entry.path.relative_to(settings.upload_dir))
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
     return tmp_path
 

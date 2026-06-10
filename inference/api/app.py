@@ -5,6 +5,7 @@ import anyio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from ..image_index import image_index
 from ..scheduler import run_cleanup_loop
 from .predictor import ensure_predictor
 from .router import router as api_router
@@ -12,6 +13,7 @@ from .router import router as api_router
 
 @contextlib.asynccontextmanager
 async def lifespan(_: object) -> AsyncGenerator[None]:
+    await image_index.migrate_from_index_file()
     with ensure_predictor():
         async with anyio.create_task_group() as tg:
             tg.start_soon(run_cleanup_loop)
