@@ -1,7 +1,5 @@
 """Image preprocessing for screen detector V3 inference."""
 
-from pathlib import Path
-
 import cv2
 import numpy as np
 
@@ -46,18 +44,3 @@ def normalize_rgb(
     # HWC → CHW → NCHW
     image = np.transpose(image, (2, 0, 1))
     return np.expand_dims(image, axis=0)
-
-
-def preprocess_image(image_path: Path) -> np.ndarray:
-    """Load image from disk and preprocess for model inference.
-
-    Args:
-        image_path: Path to image file.
-
-    Returns:
-        Preprocessed image as numpy array (1, C, H, W).
-    """
-    image = cv2.imread(str(image_path))
-    if image is None:
-        raise ValueError(f"Failed to load image: {image_path}")
-    return normalize_rgb(image)

@@ -91,7 +91,7 @@ def main() -> None:
     import sys
 
     # Default paths
-    input_dir = str(settings.project_root / "data" / "input")
+    input_dir = str(settings.data_dir / "input")
     output_path = str(settings.output_dir / "result_v2.json")
 
     # Parse arguments

@@ -1,5 +1,6 @@
 """FFT spectrum service with LRU cache."""
 
+import functools
 import hashlib
 from collections import OrderedDict
 from pathlib import Path
@@ -49,6 +50,7 @@ class FFTService:
         self._cache[key] = value
 
     @staticmethod
+    @functools.lru_cache(maxsize=16)
     def _hash_file(path: Path) -> str:
         h = hashlib.sha256()
         with path.open("rb") as f:

@@ -13,7 +13,7 @@ Usage:
 
 import functools
 from pathlib import Path
-from typing import Any, overload
+from typing import Any, Final, overload
 from pydantic import BaseModel, Field
 
 
@@ -48,15 +48,15 @@ class Settings(BaseModel):
         return self.data_dir / "upload"
 
     @functools.cached_property
-    def index_file(self) -> Path:
-        return self.upload_dir / "index.json"
+    def index_db(self) -> Path:
+        return self.upload_dir / "index.sqlite3"
 
     # Model paths
-    @functools.cached_property
+    @property
     def stage1_model_path(self) -> Path:
         return self.models_dir / "stage1_natural_vs_screenshot.onnx"
 
-    @functools.cached_property
+    @property
     def stage2_model_path(self) -> Path:
         return self.models_dir / "stage2_screenshot_vs_screenphoto.onnx"
 
@@ -84,7 +84,7 @@ class Settings(BaseModel):
 
 
 # Global settings instance
-settings = Settings()
+settings: Final = Settings()
 
 
 @overload
@@ -94,7 +94,7 @@ def configure(
     *,
     project_root: Path | None = None,
     upload_dir: Path | None = None,
-    index_file: Path | None = None,
+    index_db: Path | None = None,
     models_dir: Path | None = None,
     image_size: int | None = None,
     input_channels: int | None = None,
@@ -121,54 +121,25 @@ def configure(**kwargs: Any) -> Settings:
     Example:
         configure(upload_dir=Path("/tmp/test"), api_port=9999)
     """
-    global settings
-
     if not kwargs:
         return settings
 
     upload_dir = kwargs.pop("upload_dir", None)
-    index_file = kwargs.pop("index_file", None)
+    index_db = kwargs.pop("index_db", None)
     models_dir = kwargs.pop("models_dir", None)
 
     # Create new settings with provided kwargs
     new_settings = Settings.model_validate({**settings.model_dump(), **kwargs})
 
-    # Update cached properties if provided
-    if upload_dir is not None:
-        # Clear cached_property cache and set new value
-        if "upload_dir" in settings.__dict__:
-            del settings.__dict__["upload_dir"]
-        settings.__dict__["upload_dir"] = Path(upload_dir)
-
-        if "index_file" in settings.__dict__:
-            del settings.__dict__["index_file"]
-        settings.__dict__["index_file"] = Path(upload_dir) / "index.json"
-    elif index_file is not None:
-        if "index_file" in settings.__dict__:
-            del settings.__dict__["index_file"]
-        settings.__dict__["index_file"] = Path(index_file)
-
-    if models_dir is not None:
-        if "models_dir" in settings.__dict__:
-            del settings.__dict__["models_dir"]
-        settings.__dict__["models_dir"] = Path(models_dir)
-
-        if "stage1_model_path" in settings.__dict__:
-            del settings.__dict__["stage1_model_path"]
-        settings.__dict__["stage1_model_path"] = (
-            Path(models_dir) / "stage1_natural_vs_screenshot.onnx"
-        )
-
-        if "stage2_model_path" in settings.__dict__:
-            del settings.__dict__["stage2_model_path"]
-        settings.__dict__["stage2_model_path"] = (
-            Path(models_dir) / "stage2_screenshot_vs_screenphoto.onnx"
-        )
-
-    # Update regular fields
+    # Update global settings with new values
     for key in Settings.model_fields:
-        if key not in ("upload_dir", "index_file", "models_dir",
-                       "stage1_model_path", "stage2_model_path"):
-            setattr(settings, key, getattr(new_settings, key))
+        setattr(settings, key, getattr(new_settings, key))
+    if upload_dir is not None:
+        settings.upload_dir = Path(upload_dir)
+        settings.index_db = settings.upload_dir / "index.sqlite3"
+    if index_db is not None:
+        settings.index_db = Path(index_db)
+    if models_dir is not None:
+        settings.models_dir = Path(models_dir)
 
     return settings

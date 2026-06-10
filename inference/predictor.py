@@ -5,6 +5,7 @@ confidence tiering. Delegates model loading and FFT caching to
 dedicated modules.
 """
 
+import functools
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,7 @@ import onnxruntime as ort
 from .config import settings
 from .fft_service import FFTService
 from .model_loader import ModelLoader
-from .preprocess import normalize_rgb, preprocess_image
+from .preprocess import normalize_rgb
 
 
 def _softmax(x: np.ndarray) -> np.ndarray:
@@ -70,73 +71,43 @@ def _check_ood(probabilities: dict[str, float]) -> bool:
     return max(probabilities.values()) < settings.ood_threshold
 
 
-class ScreenDetectorPredictor:
-    """Two-stage ONNX-based screen detector predictor."""
+class PredictTask:
+    def __init__(self, models: ModelLoader, fft: FFTService, image_path: Path) -> None:
+        self.models = models
+        self.fft = fft
+        self.image_path = image_path
 
-    def __init__(
-        self,
-        stage1_path: Path | None = None,
-        stage2_path: Path | None = None,
-    ) -> None:
-        s1 = stage1_path or settings.stage1_model_path
-        s2 = stage2_path or settings.stage2_model_path
+    @functools.cached_property
+    def original_image(self) -> np.ndarray:
+        image = cv2.imread(self.image_path)
+        if image is None:
+            raise ValueError(f"Failed to load image: {self.image_path}")
+        return image
 
-        self._models = ModelLoader(s1, s2)
-        self._fft = FFTService()
+    @functools.cached_property
+    def rgb_input(self) -> np.ndarray:
+        return normalize_rgb(self.original_image)
 
-    # -- Properties for backward compatibility --
+    @functools.cached_property
+    def fft_input(self) -> np.ndarray:
+        return self.fft.get_fft_input(self.image_path)
 
-    @property
-    def stage1_session(self) -> ort.InferenceSession | None:
-        return self._models.stage1_session
-
-    @property
-    def stage2_session(self) -> ort.InferenceSession | None:
-        return self._models.stage2_session
-
-    @property
-    def stage1_loaded(self) -> bool:
-        return self._models.stage1_loaded
-
-    @property
-    def stage2_loaded(self) -> bool:
-        return self._models.stage2_loaded
-
-    @property
-    def model_loaded(self) -> bool:
-        return self._models.model_loaded
-
-    # -- Prediction --
-
-    def predict_with_tta(self, image_path: Path) -> dict:
-        """Test Time Augmentation: original + horizontal flip, averaged."""
-        if not self._models.stage1_loaded:
+    def run_stage1(self) -> dict:
+        if not self.models.stage1_available:
             raise RuntimeError("Stage 1 model not loaded")
 
-        rgb_input = preprocess_image(image_path)
-        fft_input = self._fft.get_fft_input(image_path)
-
-        # Original
         stage1_names = ["natural", "screenshot"]
-        result = _run_stage(
-            self._models.stage1_session, rgb_input, fft_input, stage1_names
-        )
-        all_probs = [result["probabilities"]]
-
-        # Horizontal flip
-        image = cv2.imread(str(image_path))
-        if image is None:
-            raise ValueError(f"Failed to load image: {image_path}")
-        flipped = cv2.flip(image, 1)
+        flipped = cv2.flip(self.original_image, 1)
         flipped_rgb = normalize_rgb(flipped)
-        flipped_fft = self._fft.get_fft_input_from_array(flipped)
-        result_flip = _run_stage(
-            self._models.stage1_session,
-            flipped_rgb,
-            flipped_fft,
-            stage1_names,
-        )
-        all_probs.append(result_flip["probabilities"])
+        flipped_fft = self.fft.get_fft_input_from_array(flipped)
+
+        with self.models.get_stage1_session() as session:
+            # Original
+            result = _run_stage(session, self.rgb_input, self.fft_input, stage1_names)
+            # Horizontal flip
+            result_flip = _run_stage(session, flipped_rgb, flipped_fft, stage1_names)
+
+        all_probs = [result["probabilities"], result_flip["probabilities"]]
 
         # Average probabilities
         avg_probs: dict[str, float] = {}
@@ -152,6 +123,98 @@ class ScreenDetectorPredictor:
             "probabilities": avg_probs,
         }
 
+    def run_stage2(self) -> dict:
+        if not self.models.stage2_available:
+            raise RuntimeError("Stage 2 model not loaded")
+
+        stage2_names = ["screenshot", "screen_photo"]
+        with self.models.get_stage2_session() as session:
+            result = _run_stage(
+                session,
+                self.rgb_input,
+                self.fft_input,
+                stage2_names,
+            )
+
+        # Map Stage 2 result for external output
+        is_photo = result["class"] == "screen_photo"
+        final_class = "screen_photo" if is_photo else "screenshot"
+
+        return {
+            "class": final_class,
+            "confidence": result["confidence"],
+            "probabilities": {
+                "screenshot": result["probabilities"]["screenshot"],
+                "screen_photo": result["probabilities"]["screen_photo"],
+            },
+        }
+
+    def run(self) -> dict:
+        # Stage 1: natural vs screenshot (with TTA)
+        s1 = self.run_stage1()
+
+        # OOD Detection
+        if _check_ood(s1["probabilities"]):
+            max_prob = max(s1["probabilities"].values())
+            return {
+                "class": "unknown",
+                "confidence": float(max_prob),
+                "probabilities": s1["probabilities"],
+                "stage": 1,
+                "confidence_tier": "ood",
+                "action": "ignore",
+            }
+
+        # If natural, return directly
+        if s1["class"] == "natural":
+            return {
+                "class": "natural",
+                "confidence": s1["confidence"],
+                "probabilities": s1["probabilities"],
+                "stage": 1,
+                **_get_confidence_tier(s1["confidence"]),
+            }
+
+        # Stage 2: screenshot vs screen_photo
+        s2 = self.run_stage2()
+
+        return {
+            **s2,
+            "stage": 2,
+            **_get_confidence_tier(s2["confidence"]),
+        }
+
+
+class ScreenDetectorPredictor:
+    """Two-stage ONNX-based screen detector predictor."""
+
+    def __init__(
+        self,
+        stage1_path: Path | None = None,
+        stage2_path: Path | None = None,
+    ) -> None:
+        s1 = stage1_path or settings.stage1_model_path
+        s2 = stage2_path or settings.stage2_model_path
+
+        self._models = ModelLoader(s1, s2)
+        self._fft = FFTService()
+
+    # -- Properties --
+
+    @property
+    def stage1_available(self) -> bool:
+        return self._models.stage1_available
+
+    @property
+    def stage2_available(self) -> bool:
+        return self._models.stage2_available
+
+    @property
+    def model_available(self) -> bool:
+        return self._models.model_available
+
+    # -- Prediction --
+
     def predict(self, image_path: Path) -> dict:
         """Two-stage prediction with OOD detection.
 
@@ -159,65 +222,9 @@ class ScreenDetectorPredictor:
             dict with keys: class, confidence, probabilities,
             stage, confidence_tier, action
         """
-        if not self._models.stage1_loaded:
-            raise RuntimeError("Stage 1 model not loaded")
+        return PredictTask(self._models, self._fft, image_path).run()
 
-        # Stage 1: natural vs screenshot (with TTA)
-        s1_result = self.predict_with_tta(image_path)
-
-        # OOD Detection
-        if _check_ood(s1_result["probabilities"]):
-            max_prob = max(s1_result["probabilities"].values())
-            return {
-                "class": "unknown",
-                "confidence": float(max_prob),
-                "probabilities": s1_result["probabilities"],
-                "stage": 1,
-                "confidence_tier": "ood",
-                "action": "ignore",
-            }
-
-        # If natural, return directly
-        if s1_result["class"] == "natural":
-            return {
-                "class": "natural",
-                "confidence": s1_result["confidence"],
-                "probabilities": s1_result["probabilities"],
-                "stage": 1,
-                **_get_confidence_tier(s1_result["confidence"]),
-            }
-
-        # Stage 2: screenshot vs screen_photo
-        if not self._models.stage2_loaded:
-            raise RuntimeError("Stage 2 model not loaded")
-
-        rgb_input = preprocess_image(image_path)
-        fft_input = self._fft.get_fft_input(image_path)
-
-        stage2_names = ["screenshot", "screen_photo"]
-        s2_result = _run_stage(
-            self._models.stage2_session,
-            rgb_input,
-            fft_input,
-            stage2_names,
-        )
-
-        # Map Stage 2 result for external output
-        is_photo = s2_result["class"] == "screen_photo"
-        final_class = "screen_photo" if is_photo else "screenshot"
-
-        return {
-            "class": final_class,
-            "confidence": s2_result["confidence"],
-            "probabilities": {
-                "screenshot": s2_result["probabilities"]["screenshot"],
-                "screen_photo": s2_result["probabilities"]["screen_photo"],
-            },
-            "stage": 2,
-            **_get_confidence_tier(s2_result["confidence"]),
-        }
-
-    def predict_batch(self, image_paths: list) -> list:
+    def predict_batch(self, image_paths: list[Path]) -> list[dict]:
         """Predict on multiple images."""
         results = []
         for image_path in image_paths:

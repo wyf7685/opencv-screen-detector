@@ -20,7 +20,6 @@ from .schema import (
 from .utils import (
     cleanup_temp_file,
     iter_file,
-    package_entries,
     package_entries_to_temp_file,
     run_detect,
     stream_file_to_upload,
@@ -31,13 +30,13 @@ router = APIRouter(prefix="/api")
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check() -> HealthResponse:
+def health_check() -> HealthResponse:
     predictor = get_predictor()
     error = load_error()
     return HealthResponse(
         status="healthy" if predictor else ("degraded" if error else "starting"),
-        stage1_model_loaded=predictor.stage1_loaded if predictor else False,
-        stage2_model_loaded=predictor.stage2_loaded if predictor else False,
+        stage1_model_loaded=predictor.stage1_available if predictor else False,
+        stage2_model_loaded=predictor.stage2_available if predictor else False,
         load_error=error,
     )
 
@@ -128,13 +127,7 @@ async def package_images(request: PackageRequest) -> StreamingResponse:
 
     logger.info(f"Received package request for images after {after_time.isoformat()}")
 
-    async with image_index.load_index() as index:
-        matching_entries = [
-            entry
-            for entry in index.values()
-            if entry.created_at > after_time and entry.path.exists()
-        ]
-
+    async with image_index.list_entries_after(after_time) as matching_entries:
         if not matching_entries:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
